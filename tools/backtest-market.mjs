@@ -32,8 +32,8 @@ const SEASON = +(process.argv[2] || 2024);
 const SCOPE  = (process.argv[3] || 'reg').toLowerCase();
 const WEEK_LIMIT = process.argv[4] ? +process.argv[4] : 99;
 const RETAIL = 'fanduel', SHARP = 'pinnacle';
-// pinnacle/lowvig/betonlineag are the sharp, low-hold references (fallbacks if Pinnacle absent)
-const BOOKS = 'pinnacle,fanduel,draftkings,lowvig,betonlineag';
+// broad set: sharp refs (pinnacle/lowvig/betonlineag) + the field of US books for a consensus reference
+const BOOKS = 'pinnacle,fanduel,draftkings,betmgm,caesars,betrivers,lowvig,betonlineag';
 const BREAKEVEN = 52.38;
 const CACHE = path.join(path.dirname(fileURLToPath(import.meta.url)), '.mktcache');
 
@@ -57,6 +57,7 @@ function parseCSV(text){ const rows=[]; let row=[],f='',q=false;
   if(f.length||row.length){ row.push(f); rows.push(row); }
   const h=rows.shift(); return rows.filter(r=>r.length>1).map(r=>{ const o={}; h.forEach((k,i)=>o[k]=r[i]); return o; }); }
 const num = v => (v==null||v===''||v==='NA')?null:(isNaN(+v)?null:+v);
+const median = a => { if(!a.length)return null; const s=[...a].sort((x,y)=>x-y); const m=s.length>>1; return s.length%2?s[m]:(s[m-1]+s[m])/2; };
 const sleep = ms => new Promise(r=>setTimeout(r,ms));
 
 // ET wall time -> UTC instant (handles EDT/EST without a tz lib)
@@ -138,10 +139,13 @@ function line(label, t, side){ const flag=t.pct>=BREAKEVEN?'  ✅':'';
       const tot = byTeam[norm(FULL[g.home])];
       g.hadSnap = !!tot;
       if(!tot) continue;
-      g.retailClose = tot[RETAIL] ?? tot.draftkings ?? null;
+      const retailKey = tot[RETAIL]!=null ? RETAIL : (tot.draftkings!=null ? 'draftkings' : null);
+      g.retailClose = retailKey ? tot[retailKey] : null;
       g.sharpClose  = tot.pinnacle ?? tot.lowvig ?? tot.betonlineag ?? null;
-      g.sharpSrc = tot.pinnacle!=null?'pinnacle':tot.lowvig!=null?'lowvig':tot.betonlineag!=null?'betonline':'—';
       g.pinHad = tot.pinnacle!=null;
+      // field consensus = median of every book EXCEPT the retail book we're betting
+      const field = Object.entries(tot).filter(([k,v])=>k!==retailKey && v!=null).map(([,v])=>v);
+      g.fieldClose = field.length ? median(field) : null;
     }
     if(calls%10===0) process.stdout.write(`  …${calls}/${stamps.length} snapshots (credits left: ${creditsRemaining})\n`);
   }
@@ -155,29 +159,32 @@ function line(label, t, side){ const flag=t.pct>=BREAKEVEN?'  ✅':'';
   console.log(`  sharp source: Pinnacle on ${pinAmong.filter(g=>g.pinHad).length}/${pinAmong.length} matched (rest used lowvig/betonline)`);
   noSnap.slice(0,5).forEach(g=>console.log(`    no snapshot: ${g.away}@${g.home} ${g.gameday} ${g.gametime} → ${g.snapTs}`));
 
-  // keep games where we have both retail + sharp closing totals
-  const rows = games.filter(g=>g.retailClose!=null && g.sharpClose!=null);
-  rows.forEach(g=>{ g.gap = +(g.retailClose - g.sharpClose).toFixed(2); });
-  const matched = rows.length;
-
   console.log(`\n  UNDERCAST MARKET BACKTEST — ${SEASON} ${SCOPE==='all'?'(incl. playoffs)':'reg'}${WEEK_LIMIT<99?` · wks 1-${WEEK_LIMIT}`:''}`);
-  console.log(`  retail=${RETAIL} vs sharp=${SHARP} · closing lines · break-even ${BREAKEVEN}%`);
-  console.log(`  matched ${matched}/${games.length} games with both books · credits remaining: ${creditsRemaining}\n`);
-  console.log('  bucket                          n   W-L-P    win%   side');
-  console.log('  '+'─'.repeat(66));
+  console.log(`  retail=${RETAIL} · closing lines (~60m pre-kick) · break-even ${BREAKEVEN}% · credits left: ${creditsRemaining}`);
 
-  // Bet the retail line, UNDER, when retail is inflated vs sharp
-  const infl = th => { const s=rows.filter(g=>g.gap>=th); s.forEach(g=>g.betLine=g.retailClose); return tally(s,'under'); };
-  const defl = th => { const s=rows.filter(g=>g.gap<=-th); s.forEach(g=>g.betLine=g.retailClose); return tally(s,'over'); };
-  const agree = () => { const s=rows.filter(g=>Math.abs(g.gap)<0.5); s.forEach(g=>g.betLine=g.retailClose); return tally(s,'under'); };
+  function block(title, rowset, gapKey){
+    console.log(`\n  ${title}  (${rowset.length} games)`);
+    console.log('  bucket                          n   W-L-P    win%   side');
+    console.log('  '+'─'.repeat(64));
+    const infl = th => { const s=rowset.filter(g=>g[gapKey]>=th); s.forEach(g=>g.betLine=g.retailClose); return tally(s,'under'); };
+    const defl = th => { const s=rowset.filter(g=>g[gapKey]<=-th); s.forEach(g=>g.betLine=g.retailClose); return tally(s,'over'); };
+    const agree = () => { const s=rowset.filter(g=>Math.abs(g[gapKey])<0.5); s.forEach(g=>g.betLine=g.retailClose); return tally(s,'under'); };
+    console.log(line(`retail ≥ ref +1.5  → UNDER`, infl(1.5), 'U'));
+    console.log(line(`retail ≥ ref +1.0  → UNDER`, infl(1.0), 'U'));
+    console.log(line(`retail ≥ ref +0.5  → UNDER`, infl(0.5), 'U'));
+    console.log(line(`retail ≤ ref −0.5  → OVER`,  defl(0.5), 'O'));
+    console.log(line(`retail ≤ ref −1.0  → OVER`,  defl(1.0), 'O'));
+    console.log(line(`|gap| < 0.5 (agree) → UNDER`, agree(), 'U'));
+  }
 
-  console.log(line(`retail ≥ sharp +1.5  → UNDER`, infl(1.5), 'U'));
-  console.log(line(`retail ≥ sharp +1.0  → UNDER`, infl(1.0), 'U'));
-  console.log(line(`retail ≥ sharp +0.5  → UNDER`, infl(0.5), 'U'));
-  console.log(line(`retail ≤ sharp −0.5  → OVER`,  defl(0.5), 'O'));
-  console.log(line(`retail ≤ sharp −1.0  → OVER`,  defl(1.0), 'O'));
-  console.log(line(`|gap| < 0.5 (agree)  → UNDER`, agree(), 'U'));
-  console.log('  '+'─'.repeat(66));
+  const sharpRows = games.filter(g=>g.retailClose!=null && g.sharpClose!=null);
+  sharpRows.forEach(g=>g.gapSharp=+(g.retailClose-g.sharpClose).toFixed(2));
+  const fieldRows = games.filter(g=>g.retailClose!=null && g.fieldClose!=null);
+  fieldRows.forEach(g=>g.gapField=+(g.retailClose-g.fieldClose).toFixed(2));
+
+  block('vs SHARP (Pinnacle where available)', sharpRows, 'gapSharp');
+  block('vs FIELD consensus (median of other books)', fieldRows, 'gapField');
+  console.log('  '+'─'.repeat(64));
   console.log(`  ✅ = win rate clears the ${BREAKEVEN}% needed to profit at -110.`);
   console.log(`  Credits remaining on your key: ${creditsRemaining}\n`);
 })();
