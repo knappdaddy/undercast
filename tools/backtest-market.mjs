@@ -32,7 +32,8 @@ const SEASON = +(process.argv[2] || 2024);
 const SCOPE  = (process.argv[3] || 'reg').toLowerCase();
 const WEEK_LIMIT = process.argv[4] ? +process.argv[4] : 99;
 const RETAIL = 'fanduel', SHARP = 'pinnacle';
-const BOOKS = 'pinnacle,fanduel,draftkings';
+// pinnacle/lowvig/betonlineag are the sharp, low-hold references (fallbacks if Pinnacle absent)
+const BOOKS = 'pinnacle,fanduel,draftkings,lowvig,betonlineag';
 const BREAKEVEN = 52.38;
 const CACHE = path.join(path.dirname(fileURLToPath(import.meta.url)), '.mktcache');
 
@@ -135,12 +136,24 @@ function line(label, t, side){ const flag=t.pct>=BREAKEVEN?'  ✅':'';
     calls++;
     for(const g of groups[ts]){
       const tot = byTeam[norm(FULL[g.home])];
+      g.hadSnap = !!tot;
       if(!tot) continue;
-      g.retailClose = tot[RETAIL] ?? null;
-      g.sharpClose  = tot[SHARP] ?? null;
+      g.retailClose = tot[RETAIL] ?? tot.draftkings ?? null;
+      g.sharpClose  = tot.pinnacle ?? tot.lowvig ?? tot.betonlineag ?? null;
+      g.sharpSrc = tot.pinnacle!=null?'pinnacle':tot.lowvig!=null?'lowvig':tot.betonlineag!=null?'betonline':'—';
+      g.pinHad = tot.pinnacle!=null;
     }
     if(calls%10===0) process.stdout.write(`  …${calls}/${stamps.length} snapshots (credits left: ${creditsRemaining})\n`);
   }
+
+  // diagnostics — why do games drop out?
+  const noSnap  = games.filter(g=>!g.hadSnap);
+  const noRetail= games.filter(g=>g.hadSnap && g.retailClose==null);
+  const noSharp = games.filter(g=>g.hadSnap && g.sharpClose==null);
+  console.log(`\n  diagnostics: no snapshot ${noSnap.length} · missing retail ${noRetail.length} · missing sharp ${noSharp.length}`);
+  const pinAmong = games.filter(g=>g.sharpClose!=null);
+  console.log(`  sharp source: Pinnacle on ${pinAmong.filter(g=>g.pinHad).length}/${pinAmong.length} matched (rest used lowvig/betonline)`);
+  noSnap.slice(0,5).forEach(g=>console.log(`    no snapshot: ${g.away}@${g.home} ${g.gameday} ${g.gametime} → ${g.snapTs}`));
 
   // keep games where we have both retail + sharp closing totals
   const rows = games.filter(g=>g.retailClose!=null && g.sharpClose!=null);
