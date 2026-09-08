@@ -1,0 +1,50 @@
+name: Market Backtest
+
+# Validates the Book-vs-Sharp betting-market signal against real results.
+# Needs a paid The Odds API key stored as the repo secret ODDS_API_KEY.
+# Dispatch from the Actions tab (Run workflow). Uses API credits — start with
+# a small week limit. Snapshots are cached in the runner only (not persisted),
+# so each run re-spends credits; keep the week limit low while iterating.
+
+on:
+  workflow_dispatch:
+    inputs:
+      season:
+        description: "Season (2020+ only; historical coverage starts 2020)"
+        default: "2024"
+        required: true
+      scope:
+        description: "reg or all"
+        default: "reg"
+        required: true
+      weeks:
+        description: "Only weeks 1..N (keep small to save credits; blank = full season)"
+        default: "2"
+        required: false
+
+jobs:
+  market:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - name: Run market backtest
+        env:
+          ODDS_API_KEY: ${{ secrets.ODDS_API_KEY }}
+          SEASON: ${{ inputs.season }}
+          SCOPE: ${{ inputs.scope }}
+          WEEKS: ${{ inputs.weeks }}
+        run: |
+          if [ -z "$ODDS_API_KEY" ]; then
+            echo "::error::ODDS_API_KEY secret is not set. Add it under Settings → Secrets and variables → Actions."
+            exit 1
+          fi
+          node tools/backtest-market.mjs "$SEASON" "$SCOPE" "$WEEKS" | tee /tmp/out.txt
+          {
+            echo '### Market backtest — '"$SEASON"' '"$SCOPE"' (weeks ≤ '"$WEEKS"')'
+            echo '```'
+            cat /tmp/out.txt
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
