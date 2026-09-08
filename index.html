@@ -14,6 +14,7 @@
   --txt:#eef2f9;--mid:#9aa7bf;--dim:#697590;
   --under:#2dd4a7;--under-d:#0f3d33;--over:#5b6b8a;
   --infl:#e879c6;--infl-d:#3a1330;--infl-b:#5c1d4a;   /* inflation = magenta, distinct from under-green */
+  --overl:#f2a154;--overl-d:#3a2410;   /* over lean = amber */
   --warn:#f5a524;--warn-d:#3d2f10;--hot:#f2683c;--cold:#5aa7ff;--wind:#f5a524;--stack:#ff6b6b;
   --acc:#3d7dff;--r:16px;--rs:11px;
 }
@@ -71,7 +72,7 @@ main{padding:.4rem 1rem 3rem}
 .strip{display:grid;grid-template-columns:repeat(3,1fr);gap:.5rem;margin:.7rem 0 1rem}
 .stat{background:var(--panel);border:1px solid var(--line);border-radius:var(--rs);padding:.7rem .6rem;text-align:center}
 .stat .n{font-family:"Barlow Condensed";font-size:1.7rem;font-weight:700;line-height:1}
-.stat .n.u{color:var(--under)}.stat .n.i{color:var(--infl)}.stat .n.s{color:var(--stack)}
+.stat .n.u{color:var(--under)}.stat .n.i{color:var(--infl)}.stat .n.s{color:var(--stack)}.stat .n.ov{color:var(--overl)}
 .stat .l{font-size:.58rem;color:var(--dim);text-transform:uppercase;letter-spacing:.06em;margin-top:.3rem}
 .sortrow{display:flex;align-items:center;justify-content:space-between;margin:.2rem 0 .7rem;gap:.5rem}
 .sortrow .h{font-size:.68rem;color:var(--dim);text-transform:uppercase;letter-spacing:.08em}
@@ -82,6 +83,7 @@ main{padding:.4rem 1rem 3rem}
 .game.lean{border-color:var(--under-d)}
 .game.strong{border-color:#1c6b58;box-shadow:0 0 0 1px rgba(45,212,167,.15)}
 .game.stackedcard{border-color:#5c1d1d;box-shadow:0 0 0 1px rgba(255,107,107,.18)}
+.game.overcard{border-color:#5c3a15}
 .g-top{padding:.85rem .9rem;display:flex;gap:.8rem;align-items:center}
 .g-main{flex:1;min-width:0}
 .g-match{display:flex;align-items:center;gap:.4rem;font-family:"Barlow Condensed";font-size:1.15rem;font-weight:600;line-height:1}
@@ -109,9 +111,11 @@ main{padding:.4rem 1rem 3rem}
 .mkt{font-size:.82rem;color:var(--dim);text-decoration:line-through}
 .adj{font-family:"Barlow Condensed";font-size:1.7rem;font-weight:700;line-height:1}
 .adj.u{color:var(--under)}
+.adj.o{color:var(--overl)}
 .leanpill{margin-top:.35rem;display:inline-flex;align-items:center;gap:.25rem;font-size:.6rem;font-weight:700;
   padding:.18rem .45rem;border-radius:6px;text-transform:uppercase;letter-spacing:.03em}
 .leanpill.u{background:var(--under-d);color:var(--under)}
+.leanpill.o{background:var(--overl-d);color:var(--overl)}
 .leanpill.n{background:var(--panel2);color:var(--dim)}
 .trio{display:flex;gap:.55rem;font-size:.58rem;color:var(--dim);margin-top:.35rem;justify-content:flex-end;flex-wrap:wrap}
 .trio span b{color:var(--txt);font-family:"Barlow Condensed";font-size:.82rem;font-weight:700}
@@ -121,6 +125,7 @@ main{padding:.4rem 1rem 3rem}
 .edgebar i{position:absolute;left:0;top:0;bottom:0}
 .edgebar i.we{background:linear-gradient(90deg,#1c6b58,var(--under))}
 .edgebar i.in{background:linear-gradient(90deg,#5c1d4a,var(--infl));opacity:.9}
+.edgebar i.ov{background:linear-gradient(90deg,#5c3a15,var(--overl));opacity:.9}
 
 /* inflation strip */
 .infstrip{padding:.55rem .9rem;border-top:1px solid var(--line);display:flex;flex-wrap:wrap;gap:.4rem;
@@ -130,6 +135,11 @@ main{padding:.4rem 1rem 3rem}
 .infbadge.s2{background:#2a1626;color:#e0a8d0;border:1px solid #47203c}
 .infbadge.s1{background:var(--panel);color:var(--mid);border:1px solid var(--line2)}
 .infbadge.s0{background:var(--panel);color:var(--dim);border:1px solid var(--line)}
+.infbadge.def{background:var(--overl-d);color:var(--overl);border:1px solid #5c3a15}
+.ldelta{font-family:"Barlow Condensed";font-weight:700;font-size:.72rem;margin-left:.4rem}
+.ldelta.up{color:var(--infl)}.ldelta.dn{color:var(--overl)}
+.steam{font-size:.58rem;font-weight:700;padding:.06rem .3rem;border-radius:4px;margin-left:.3rem}
+.steam.up{background:var(--infl-d);color:var(--infl)}.steam.dn{background:var(--overl-d);color:var(--overl)}
 .sig{font-size:.6rem;color:var(--mid);background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:.14rem .4rem}
 .stacked{font-size:.62rem;font-weight:700;color:var(--stack);background:#3a1414;border:1px solid #5c1d1d;
   border-radius:6px;padding:.2rem .5rem;margin-left:auto;display:inline-flex;gap:.25rem;align-items:center}
@@ -158,11 +168,13 @@ main{padding:.4rem 1rem 3rem}
 .comp .cv{font-family:"Barlow Condensed";font-weight:700;font-size:.95rem;flex-shrink:0}
 .comp .cv.neg{color:var(--under)}
 .comp .cv.pos{color:var(--infl)}
+.comp .cv.ovr{color:var(--overl)}
 .comp .cv.zero{color:var(--dim)}
 .comp .track{flex:1;height:5px;background:var(--bg);border-radius:3px;overflow:hidden;max-width:64px}
 .comp .track i{display:block;height:100%;border-radius:3px}
 .comp .track i.u{background:var(--under)}
 .comp .track i.p{background:var(--infl)}
+.comp .track i.o{background:var(--overl)}
 .wsum{display:flex;justify-content:space-between;align-items:center;margin-top:.6rem;padding-top:.55rem;
   border-top:1px dashed var(--line2);font-size:.78rem}
 .wsum b{font-family:"Barlow Condensed";font-size:1.1rem}
@@ -291,7 +303,7 @@ main{padding:.4rem 1rem 3rem}
     <section id="tab-games">
       <div class="strip">
         <div class="stat"><div class="n u" id="sUnders">–</div><div class="l">Under Leans</div></div>
-        <div class="stat"><div class="n i" id="sInfl">–</div><div class="l">Inflated Lines</div></div>
+        <div class="stat"><div class="n ov" id="sInfl">–</div><div class="l">Over Leans</div></div>
         <div class="stat"><div class="n s" id="sStack">–</div><div class="l">Stacked Edges</div></div>
       </div>
       <div class="sortrow">
@@ -382,11 +394,23 @@ main{padding:.4rem 1rem 3rem}
       </div>
 
       <div class="method">
-        <h4>🔗 Combining &amp; conviction</h4>
-        <p>A game leans <b>UNDER</b> when Inflation + unpriced Weather clears <b>1.5 pts</b>. Conviction
-          is market-weighted: your book-vs-sharp gap and line move drive it, with weather as a
-          confirming boost. When the market and the weather both point under, the game is flagged
-          <b style="color:var(--stack)">🔥 Stacked</b> — the highest-confidence spot on the board.</p>
+        <h4>🔗 Combining, direction &amp; conviction</h4>
+        <p>A game leans <b style="color:var(--under)">UNDER</b> when Inflation + unpriced Weather clears
+          <b>+1.5 pts</b>. The model also runs the other way: when your book sits <i>below</i> fair value
+          (deflated line) by more than <b>1.5 pts</b>, it flags an <b style="color:var(--overl)">OVER</b>
+          lean. Weather only ever pushes under, so it makes over leans harder — you won't get an over
+          flag in a downpour.</p>
+        <p style="margin-top:.5rem">Conviction is market-weighted: your book-vs-sharp gap and line move
+          drive it, with weather as a confirming boost. When the market and weather both point under,
+          the game is flagged <b style="color:var(--stack)">🔥 Stacked</b>.</p>
+      </div>
+
+      <div class="method">
+        <h4>📊 The whole market &amp; steam</h4>
+        <p>With an odds key, every game's <b>Why</b> panel shows the full <b>book ladder</b> — each
+          book's total, with the sharp book (Pinnacle) and your book tagged, and how far each has moved
+          since it opened. When the market has moved <b>1.5+ pts</b> in one direction, that's flagged as
+          <b>steam</b> (↑ inflating / ↓ deflating) — sharp coordinated movement worth respecting.</p>
       </div>
 
       <div class="method">
@@ -539,7 +563,9 @@ function evaluate(g){
   const residualWeather = +(we.penalty*(1-CFG.marketWeatherEfficiency)).toFixed(2);
   const totalEdge = +(inf.inflationPts + residualWeather).toFixed(2);
   const fair = hasLine ? +(retail - totalEdge).toFixed(1) : null;
-  const lean = (hasLine && totalEdge>=CFG.underThreshold) ? 'under' : 'none';
+  const lean = !hasLine ? 'none'
+    : totalEdge >= CFG.underThreshold ? 'under'
+    : totalEdge <= -CFG.underThreshold ? 'over' : 'none';   // deflated line → over value
   const stacked = inf.marketInflation>=1 && we.penalty>=1.5;
   const conv = Math.round(Math.max(50,Math.min(95, 50 + inf.marketPart*8 + inf.situational*4 + residualWeather*5)));
   return {...g, we, inf, residualWeather, totalEdge, retail, fair, lean, stacked, conv, hasLine};
@@ -665,12 +691,20 @@ async function applyLineMovement(games){
   const book=localStorage.getItem('uc_book')||'fanduel';
   const earliest=Math.min(...games.map(g=>g.kickSort).filter(Boolean)); if(!isFinite(earliest)) return;
   const date=new Date(earliest-5*864e5).toISOString().slice(0,19)+'Z';
+  // fetch the opener snapshot across ALL books so the ladder can show per-book movement
   const u=`https://api.the-odds-api.com/v4/historical/sports/americanfootball_nfl/odds/?apiKey=${encodeURIComponent(key)}`
-    +`&regions=us&markets=totals&oddsFormat=american&bookmakers=${book}&date=${encodeURIComponent(date)}`;
+    +`&regions=us,eu&markets=totals&oddsFormat=american&bookmakers=${ODDS_BOOKS}&date=${encodeURIComponent(date)}`;
   const snap=await fetchJSON(u,12000); const data=(snap&&snap.data)?snap.data:[]; const byTeam={};
-  data.forEach(o=>{ const bm=(o.bookmakers||[]).find(b=>b.key===book); if(!bm)return; const m=(bm.markets||[]).find(x=>x.key==='totals');
-    const ov=m&&(m.outcomes||[]).find(x=>x.name==='Over'); if(ov&&ov.point!=null)byTeam[normTeam(o.home_team)]=+ov.point; });
-  games.forEach(g=>{ const p=byTeam[normTeam(g.home)]; if(p!=null)g.openTotal=p; });
+  data.forEach(o=>{ const tot={};
+    (o.bookmakers||[]).forEach(b=>{ const m=(b.markets||[]).find(x=>x.key==='totals');
+      const ov=m&&(m.outcomes||[]).find(x=>x.name==='Over'); if(ov&&ov.point!=null)tot[b.key]=+ov.point; });
+    byTeam[normTeam(o.home_team)]=tot; });
+  games.forEach(g=>{ const tot=byTeam[normTeam(g.home)]; if(!tot)return;
+    g.openBooks=tot;
+    if(tot[book]!=null) g.openTotal=tot[book];
+    g.openMedian=medianOf(Object.values(tot));
+    if(isNum(g.medianTotal)&&isNum(g.openMedian)){ const mv=+(g.medianTotal-g.openMedian).toFixed(1); g.steam=Math.abs(mv)>=1.5?mv:null; }
+  });
 }
 
 /* ---------- SAMPLE (sandbox fallback) ---------- */
@@ -709,7 +743,10 @@ function sampleGames(){
       marketTotal:48.5,liveTotal:47.5,sharpTotal:48.5,openTotal:48.0,spread:1.5,weather:wx(94,6,9,'none','none',20,74,'Hot & humid, midday sun')}),
     mk({id:'DENSEA',away:'Denver Broncos',home:'Seattle Seahawks',awayAb:'DEN',homeAb:'SEA',venue:'Lumen Field',city:'Seattle, WA',roof:'open',
       kick:'Mon 8:15 PM ET',kickISO:MON+'T00:15:00Z',kickSort:Date.parse(MON+'T00:15:00Z'),
-      marketTotal:44.5,liveTotal:43.5,sharpTotal:44.0,openTotal:44.0,spread:-1,weather:wx(60,13,18,'rain','moderate',70,82,'Steady Pacific NW rain')})
+      marketTotal:44.5,liveTotal:43.5,sharpTotal:44.0,openTotal:44.0,spread:-1,weather:wx(60,13,18,'rain','moderate',70,82,'Steady Pacific NW rain')}),
+    mk({id:'CARWAS',away:'Carolina Panthers',home:'Washington Commanders',awayAb:'CAR',homeAb:'WSH',venue:'Northwest Stadium',city:'Landover, MD',roof:'open',
+      kick:'Sun 1:00 PM ET',kickISO:D+'T17:00:00Z',kickSort:Date.parse(D+'T17:00:00Z'),
+      marketTotal:41.5,liveTotal:41.5,sharpTotal:44.5,openTotal:44.0,spread:-3,weather:wx(68,7,10,'none','none',30,55,'Mild, mostly clear')})
   ];
 }
 
@@ -775,7 +812,10 @@ function wxChips(G){ const w=G.weather||{},we=G.we;
   return out; }
 
 function compRow(icon,name,detail,val,pos){ const active=Math.abs(val)>0.001,pct=Math.min(Math.abs(val)/3.6*100,100);
-  const cls=pos?'pos':'neg', bar=pos?'p':'u', sign=val<0?'+':(pos?'+':'−');
+  // pos = market/inflation term (signed: + inflated magenta, − deflated amber); else weather penalty (always −, teal)
+  let cls,bar,sign;
+  if(pos){ sign=val>=0?'+':'−'; cls=val>=0?'pos':'ovr'; bar=val>=0?'p':'o'; }
+  else { sign='−'; cls='neg'; bar='u'; }
   return `<div class="comp"><span class="ci">${icon}</span><span class="cn"><b>${name}</b> ${detail?`· ${detail}`:''}</span>
     ${active?`<span class="track"><i class="${bar}" style="width:${pct}%"></i></span>`:''}
     <span class="cv ${active?cls:'zero'}">${active?sign+Math.abs(val).toFixed(2).replace(/\.?0+$/,''):'0'}</span></div>`; }
@@ -785,21 +825,26 @@ function infTier(pts){ return pts>=2?'s3':pts>=1?'s2':pts>0.01?'s1':'s0'; }
 // The whole-market picture: where every book's total sits, sharp + your book tagged.
 function bookLadder(G){
   const inf=G.inf; let rows=[];
+  const openOf = k => (G.openBooks && isNum(G.openBooks[k])) ? +G.openBooks[k] : null;
   if(G.books && Object.keys(G.books).length){
     rows = Object.entries(G.books).filter(([,v])=>isNum(v))
-      .map(([k,v])=>({name:BOOK_LABELS[k]||k, v:+v, sharp:k===CFG.sharpBook, you:k===G.bookKey}));
+      .map(([k,v])=>({name:BOOK_LABELS[k]||k, v:+v, open:openOf(k), sharp:k===CFG.sharpBook, you:k===G.bookKey}));
   } else {                                            // no odds key / sample — show the anchors we have
-    if(G.retail!=null) rows.push({name:G.book||'Your book', v:G.retail, you:true});
-    if(inf.sharp!=null && inf.sharp!==G.retail) rows.push({name:inf.hasSharp?'Pinnacle':'Market median', v:inf.sharp, sharp:true});
+    if(G.retail!=null) rows.push({name:G.book||'Your book', v:G.retail, open:(isNum(G.openTotal)?+G.openTotal:null), you:true});
+    if(inf.sharp!=null && inf.sharp!==G.retail) rows.push({name:inf.hasSharp?'Pinnacle':'Market median', v:inf.sharp, open:null, sharp:true});
     if(rows.length<2) return '';
   }
   rows.sort((a,b)=>b.v-a.v);
   const outlier = inf.isOutlier ? ` · <span style="color:var(--infl)">your book tops all ${inf.consensusN}</span>` : '';
-  return `<div class="ladder"><div class="lcap">The whole market${outlier}</div>
-    ${rows.map(r=>`<div class="lrow ${r.you?'you':''} ${r.sharp?'sharp':''}">
-      <span class="lname">${r.name}${r.sharp?' <em>sharp</em>':''}${r.you?' <em>you</em>':''}</span>
-      <span class="lval">${r.v}</span></div>`).join('')}
-    ${G.medianTotal!=null?`<div class="lmed">market median ${G.medianTotal}</div>`:''}</div>`;
+  const steam = G.steam ? ` · <span class="steam ${G.steam>0?'up':'dn'}">market ${G.steam>0?'↑':'↓'}${Math.abs(G.steam)} since open</span>` : '';
+  const rowHTML = r => { const d=(r.open!=null)?+(r.v-r.open).toFixed(1):null;
+    const dEl = (d!=null&&Math.abs(d)>=0.5) ? `<span class="ldelta ${d>0?'up':'dn'}">${d>0?'▲':'▼'}${Math.abs(d)}</span>` : '';
+    return `<div class="lrow ${r.you?'you':''} ${r.sharp?'sharp':''}">
+      <span class="lname">${r.name}${r.sharp?' <em>sharp</em>':''}${r.you?' <em>you</em>':''}${dEl}</span>
+      <span class="lval">${r.v}</span></div>`; };
+  return `<div class="ladder"><div class="lcap">The whole market${outlier}${steam}</div>
+    ${rows.map(rowHTML).join('')}
+    ${G.medianTotal!=null?`<div class="lmed">market median ${G.medianTotal}${isNum(G.openMedian)?` · opened ${G.openMedian}`:''}</div>`:''}</div>`;
 }
 
 function whyHTML(G){ const we=G.we,w=G.weather||{},inf=G.inf;
@@ -826,13 +871,13 @@ function whyHTML(G){ const we=G.we,w=G.weather||{},inf=G.inf;
     <h5>Inflation — market signals <span class="sub">Score ${inf.score}/100</span></h5>
     ${infRows}
     ${bookLadder(G)}
-    <div class="wsum"><span>Inflation subtotal (pre-weather)</span><b class="cond" style="color:var(--infl)">+${inf.inflationPts}</b></div>
+    <div class="wsum"><span>Inflation subtotal (pre-weather)</span><b class="cond" style="color:${inf.inflationPts>=0?'var(--infl)':'var(--overl)'}">${inf.inflationPts>=0?'+':'−'}${Math.abs(inf.inflationPts)}</b></div>
     <h5>Weather <span class="sub">${we.penalty>0?`model −${we.penalty} · 40% unpriced`:'no weather'}</span></h5>
     ${weatherRows}
-    <div class="wsum"><span>Unpriced weather added</span><b class="cond" style="color:var(--under)">+${G.residualWeather}</b></div>
+    <div class="wsum"><span>Unpriced weather added</span><b class="cond" style="color:var(--under)">−${G.residualWeather}</b></div>
     ${forecast}
-    <div class="fairbox"><span class="fl">Fair total ${G.hasLine?`= ${G.retail} − ${G.totalEdge}`:''}</span>
-      <span class="fv">${G.hasLine?G.fair:'—'}</span></div>
+    <div class="fairbox"><span class="fl">Fair total ${G.hasLine?`= ${G.retail} ${G.totalEdge>=0?'−':'+'} ${Math.abs(G.totalEdge)}`:''}</span>
+      <span class="fv" style="color:${G.lean==='over'?'var(--overl)':'var(--under)'}">${G.hasLine?G.fair:'—'}</span></div>
   </div>`; }
 
 function paceStrip(G){ const L=G.live; if(MODE!=='live'||!L||L.state!=='in'||L.pace==null)return '';
@@ -842,16 +887,19 @@ function paceStrip(G){ const L=G.live; if(MODE!=='live'||!L||L.state!=='in'||L.p
     ${G.hasLine?`<span class="tag2 ${u?'u':'o'}">${u?'▼ Trending under':'▲ Over pace'}</span>`:''}</div>`; }
 
 function gameCard(G){ const inf=G.inf,we=G.we;
-  let cls='game'; if(G.stacked)cls+=' stackedcard'; else if(G.lean==='under')cls+=(G.totalEdge>=3?' strong':' lean');
-  const leanPill=G.lean==='under'?`<span class="leanpill u">▼ Under</span>`:`<span class="leanpill n">${G.hasLine?'No edge':'No line'}</span>`;
+  let cls='game'; if(G.stacked)cls+=' stackedcard';
+  else if(G.lean==='under')cls+=(G.totalEdge>=2.5?' strong':' lean');
+  else if(G.lean==='over')cls+=' overcard';
+  const leanPill=G.lean==='under'?`<span class="leanpill u">▼ Under</span>`
+    :G.lean==='over'?`<span class="leanpill o">▲ Over</span>`
+    :`<span class="leanpill n">${G.hasLine?'No edge':'No line'}</span>`;
   const L=G.live, liveTag=(MODE==='live'&&L&&L.state==='in')?`<span class="livedot">LIVE Q${L.period}</span>`:(L&&L.state==='post')?`<span style="color:var(--dim)">Final</span>`:'';
-  const tier=infTier(inf.inflationPts);
+  const inflated=inf.inflationPts>=0;
   const sigChips=inf.sit.slice(0,3).map(s=>`<span class="sig">${s[0]}</span>`).join('')
-    + (G.openTotal!=null&&inf.lineMove>0?`<span class="sig">📈 +${inf.lineMove}</span>`:'');
-  const inflBadge = inf.hasSharp
-    ? `<span class="infbadge ${tier}">▲ Inflated +${inf.inflationPts}</span>`
-    : `<span class="infbadge ${tier}">▲ Infl +${inf.inflationPts} <span style="opacity:.6">(no sharp)</span></span>`;
-  const weBar=Math.min(G.residualWeather/2*100,100), inBar=Math.min(Math.max(inf.inflationPts,0)/3*100,100);
+    + (G.steam?`<span class="steam ${G.steam>0?'up':'dn'}">📈 steam ${G.steam>0?'↑':'↓'}${Math.abs(G.steam)}</span>`:'');
+  const badgeTxt = inflated ? `▲ Inflated +${inf.inflationPts}` : `▼ Deflated ${Math.abs(inf.inflationPts)}`;
+  const inflBadge = `<span class="infbadge ${inflated?infTier(inf.inflationPts):'def'}">${badgeTxt}${inf.hasSharp?'':' <span style="opacity:.6">(no sharp)</span>'}</span>`;
+  const inMag=Math.min(Math.abs(inf.inflationPts)/3*100,100);
   return `<div class="${cls}">
     <div class="g-top">
       <div class="g-main">
@@ -863,12 +911,12 @@ function gameCard(G){ const inf=G.inf,we=G.we;
       </div>
       <div class="g-edge">
         <div class="lbl">Fair / Book</div>
-        <div class="totals">${G.hasLine&&G.totalEdge>0?`<span class="mkt">${G.retail}</span>`:''}<span class="adj ${G.lean==='under'?'u':''}">${G.hasLine?G.fair:'—'}</span></div>
+        <div class="totals">${G.hasLine&&G.lean!=='none'?`<span class="mkt">${G.retail}</span>`:''}<span class="adj ${G.lean==='under'?'u':G.lean==='over'?'o':''}">${G.hasLine?G.fair:'—'}</span></div>
         ${leanPill}
         <div class="trio">${inf.sharp!=null?`<span class="sh">Sharp <b>${inf.sharp}</b></span>`:''}<span>${G.book} <b>${G.hasLine?G.retail:'—'}</b></span></div>
       </div>
     </div>
-    <div class="edgebar"><i class="in" style="width:${inBar}%"></i></div>
+    <div class="edgebar"><i class="${inflated?'in':'ov'}" style="width:${inMag}%"></i></div>
     <div class="infstrip">${inflBadge}${sigChips}${G.stacked?`<span class="stacked">🔥 Stacked</span>`:''}</div>
     ${paceStrip(G)}
     <button class="why-btn" onclick="toggleWhy('${G.id}',this)">${G.hasLine?`Fair ${G.fair} vs book ${G.retail}`:'Breakdown'} · Why <span class="cx">▾</span></button>
@@ -886,7 +934,7 @@ function renderGames(){ if(STATE.loading){ renderSkeleton(); return; }
     if(sort==='time')return a.kickSort-b.kickSort; return b.totalEdge-a.totalEdge; });
   document.getElementById('gameList').innerHTML=list.map(gameCard).join('')||'<div class="empty">No games on the board.</div>';
   document.getElementById('sUnders').textContent=list.filter(g=>g.lean==='under').length;
-  document.getElementById('sInfl').textContent=list.filter(g=>g.inf.inflationPts>=1).length;
+  document.getElementById('sInfl').textContent=list.filter(g=>g.lean==='over').length;
   document.getElementById('sStack').textContent=list.filter(g=>g.stacked).length; }
 
 function ring(pct,color){ const r=19,c=2*Math.PI*r,off=c*(1-pct/100);
