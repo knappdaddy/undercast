@@ -42,10 +42,10 @@ const V = {
 };
 
 /* ---- weather model (identical to the app, precip included) ---- */
-function windPenalty(w){ if(w<10) return 0; let p=(Math.min(w,20)-10)*0.18; if(w>20) p+=(w-20)*0.32; return Math.min(p,5.5); }
-function precipPenalty(type,intensity){ const t={rain:{light:0.6,moderate:1.6,heavy:2.6},snow:{light:1.4,moderate:2.4,heavy:3.6}};
+function windPenalty(w){ if(w<10) return 0; return Math.min((Math.min(w,20)-10)*0.18, 1.8); }   // flat above 20
+function precipPenalty(type,intensity){ const t={rain:{light:0.8,moderate:1.8,heavy:2.8},snow:{light:0,moderate:0,heavy:0}};
   if(!type||type==='none'||!t[type]) return 0; return t[type][intensity]||0; }
-function coldPenalty(f){ if(f>=32) return 0; if(f>=20) return 0.6; if(f>=10) return 1.1; return 1.7; }
+function coldPenalty(f){ if(f>=32) return 0; if(f>=20) return 0.3; if(f>=10) return 0.6; return 1.0; }   // trimmed
 function heatPenalty(f){ if(f<=85) return 0; if(f<=92) return 0.5; return 1.0; }
 function windChill(t,w){ if(t==null||t>50||w==null||w<3) return t; const v=Math.pow(w,0.16); return 35.74+0.6215*t-35.75*v+0.4275*t*v; }
 function fullPenalty(g){

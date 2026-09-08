@@ -23,8 +23,8 @@ const SCOPE   = (process.argv[3] || 'reg').toLowerCase();   // 'reg' | 'all'
 const BREAKEVEN = 52.38;                                    // -110 juice
 
 /* ---- weather model (identical to the app) ---- */
-function windPenalty(w){ if(w<10) return 0; let p=(Math.min(w,20)-10)*0.18; if(w>20) p+=(w-20)*0.32; return Math.min(p,5.5); }
-function coldPenalty(f){ if(f>=32) return 0; if(f>=20) return 0.6; if(f>=10) return 1.1; return 1.7; }
+function windPenalty(w){ if(w<10) return 0; return Math.min((Math.min(w,20)-10)*0.18, 1.8); }   // flat above 20
+function coldPenalty(f){ if(f>=32) return 0; if(f>=20) return 0.3; if(f>=10) return 0.6; return 1.0; }   // trimmed
 function heatPenalty(f){ if(f<=85) return 0; if(f<=92) return 0.5; return 1.0; }
 function windChill(t,w){ if(t==null||t>50||w==null||w<3) return t; const v=Math.pow(w,0.16); return 35.74+0.6215*t-35.75*v+0.4275*t*v; }
 function modelPenalty(g){
