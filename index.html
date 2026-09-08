@@ -358,13 +358,16 @@ main{padding:.4rem 1rem 3rem}
 
       <div class="method">
         <h4>🌬️ Weather — the part the market misses</h4>
-        <p>Weather still gets its own model (wind, precipitation, cold with wind chill, heat — see the
-          full tables in the app). But since sharp books already price <i>most</i> weather, UnderCast
-          only adds back the fraction the market is slow on:</p>
+        <p>The weather model is <b>calibrated on 2010–2024 results</b>. It rewards the two repeatable
+          under signals — <b>rain</b> (0.8 / 1.8 / 2.8 by intensity) and <b>10–19 mph wind</b> — while
+          <b>flattening extreme wind</b> (20+ mph is already priced in), treating <b>snow as neutral</b>
+          (snowy totals are shaded down and trend over), and trimming cold toward neutral.</p>
+        <p>Since sharp books already price <i>most</i> weather, UnderCast only adds back the fraction
+          the market is slow on:</p>
         <p style="margin-top:.6rem;text-align:center;background:var(--panel2);border:1px solid var(--line);border-radius:9px;padding:.7rem;color:var(--txt)">
           <code>unpriced Weather = Weather penalty × 40%</code></p>
         <p style="margin-top:.5rem;color:var(--dim);font-size:.74rem">The 40% reflects the evidence that
-          markets — even sharp ones — under-react to wind in particular. That residual is exactly the
+          markets — even sharp ones — under-react to rain and moderate wind. That residual is exactly the
           edge you've been winning on.</p>
       </div>
 
@@ -436,11 +439,14 @@ main{padding:.4rem 1rem 3rem}
 
 const CFG = { underThreshold:1.5, marketWeatherEfficiency:0.60, sharpBook:'pinnacle' };
 
-/* ---------- WEATHER MODEL ---------- */
-function windPenalty(w){ if(w<10)return 0; let p=(Math.min(w,20)-10)*0.18; if(w>20)p+=(w-20)*0.32; return Math.min(p,5.5); }
-function precipPenalty(type,intensity){ const t={rain:{light:0.6,moderate:1.6,heavy:2.6},snow:{light:1.4,moderate:2.4,heavy:3.6}};
+/* ---------- WEATHER MODEL (calibrated on 2010–2024 backtest) ----------
+   Wind flat above 20 mph (priced in); rain is the strongest signal (weighted
+   up); snow is NEUTRAL (snowy totals are shaded down and trend over); cold
+   trimmed toward neutral. */
+function windPenalty(w){ if(w<10)return 0; return Math.min((Math.min(w,20)-10)*0.18, 1.8); }
+function precipPenalty(type,intensity){ const t={rain:{light:0.8,moderate:1.8,heavy:2.8},snow:{light:0,moderate:0,heavy:0}};
   if(!type||type==='none'||!t[type])return 0; return t[type][intensity]||0; }
-function coldPenalty(f){ if(f>=32)return 0; if(f>=20)return 0.6; if(f>=10)return 1.1; return 1.7; }
+function coldPenalty(f){ if(f>=32)return 0; if(f>=20)return 0.3; if(f>=10)return 0.6; return 1.0; }
 function heatPenalty(f){ if(f<=85)return 0; if(f<=92)return 0.5; return 1.0; }
 function windChill(tempF,windMph){ if(tempF==null||tempF>50||windMph==null||windMph<3)return tempF;
   const v=Math.pow(windMph,0.16); return 35.74+0.6215*tempF-35.75*v+0.4275*tempF*v; }
