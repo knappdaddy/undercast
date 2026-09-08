@@ -984,7 +984,7 @@ function paceStrip(g){
 }
 function gameCard(g){
   const e=g.e;
-  const cls = e.lean==='under' ? (e.penalty>=3?'game lean strong':'game lean') : 'game';
+  const cls = e.lean==='under' ? (e.penalty>=2.5?'game lean strong':'game lean') : 'game';
   const barPct = Math.min(e.penalty/5*100,100);
   const leanPill = e.lean==='under' ? `<span class="leanpill u">▼ Under</span>`
     : `<span class="leanpill n">${e.hasLine?'No edge':'No line'}</span>`;
@@ -1038,7 +1038,7 @@ function renderGames(){
   const unders=list.filter(g=>g.e.lean==='under');
   document.getElementById('sGames').textContent=list.length;
   document.getElementById('sUnders').textContent=unders.length;
-  document.getElementById('sBig').textContent=list.filter(g=>g.e.penalty>=3).length;
+  document.getElementById('sBig').textContent=list.filter(g=>g.e.penalty>=2.5).length;
 }
 function ring(pct,color){
   const r=20,c=2*Math.PI*r,off=c*(1-pct/100);
