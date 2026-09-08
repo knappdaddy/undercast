@@ -1,0 +1,39 @@
+name: Backtest
+
+# Runs the weather-model backtest on GitHub's servers (full internet access),
+# so results can be produced without a local machine. Trigger from the Actions
+# tab (Run workflow) or it can be dispatched programmatically. Output is printed
+# to the job log and to the run Summary.
+
+on:
+  workflow_dispatch:
+    inputs:
+      seasons:
+        description: "Season or range (e.g. 2024 or 2020-2024)"
+        default: "2020-2024"
+        required: true
+      scope:
+        description: "reg (regular season) or all (incl. playoffs)"
+        default: "reg"
+        required: true
+
+jobs:
+  backtest:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - name: Run precip-enriched backtest
+        env:
+          SEASONS: ${{ inputs.seasons }}
+          SCOPE: ${{ inputs.scope }}
+        run: |
+          node tools/backtest-precip.mjs "$SEASONS" "$SCOPE" | tee /tmp/out.txt
+          {
+            echo '### UnderCast backtest — `'"$SEASONS"'` `'"$SCOPE"'`'
+            echo '```'
+            cat /tmp/out.txt
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
