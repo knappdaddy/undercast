@@ -77,7 +77,8 @@ async function snapshot(dateISO){
   if(fs.existsSync(f)) return JSON.parse(fs.readFileSync(f,'utf8'));
   const url = `${HIST}/?apiKey=${encodeURIComponent(KEY)}&regions=us,eu&markets=totals&oddsFormat=american`
     + `&bookmakers=${BOOKS}&date=${encodeURIComponent(dateISO)}`;
-  const r = await fetch(url);
+  let r, attempt=0;
+  while(true){ r = await fetch(url); if(r.ok || r.status<500 || attempt>=2) break; attempt++; await sleep(1500); }  // retry 5xx
   const rem = r.headers.get('x-requests-remaining'); if(rem!=null) creditsRemaining = rem;
   if(!r.ok){ throw new Error(`historical ${dateISO}: HTTP ${r.status} ${await r.text().catch(()=> '')}`.slice(0,180)); }
   const j = await r.json();
