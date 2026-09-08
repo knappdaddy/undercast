@@ -122,7 +122,7 @@ function line(label, t, side){ const flag=t.pct>=BREAKEVEN?'  ✅':'';
   const groups = {};
   for(const g of games){
     const k = etToUTC(g.gameday, g.gametime); if(isNaN(k)) continue;
-    g.snapTs = tsOf(new Date(k.getTime() - 5*60000));
+    g.snapTs = tsOf(new Date(k.getTime() - 60*60000));   // 60 min pre-kick: market fully open, sharp books still up
     (groups[g.snapTs] ||= []).push(g);
   }
   const stamps = Object.keys(groups).sort();
