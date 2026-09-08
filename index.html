@@ -133,6 +133,15 @@ main{padding:.4rem 1rem 3rem}
 .sig{font-size:.6rem;color:var(--mid);background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:.14rem .4rem}
 .stacked{font-size:.62rem;font-weight:700;color:var(--stack);background:#3a1414;border:1px solid #5c1d1d;
   border-radius:6px;padding:.2rem .5rem;margin-left:auto;display:inline-flex;gap:.25rem;align-items:center}
+.ladder{margin:.5rem 0 .2rem;background:var(--bg);border:1px solid var(--line2);border-radius:8px;padding:.35rem .45rem}
+.lcap{font-size:.58rem;color:var(--dim);text-transform:uppercase;letter-spacing:.08em;padding:.1rem .3rem .25rem}
+.lrow{display:flex;justify-content:space-between;align-items:center;font-size:.72rem;padding:.2rem .35rem;border-radius:5px;color:var(--mid)}
+.lrow.you{background:var(--panel2);color:var(--txt)}
+.lrow .lname em{font-style:normal;font-size:.54rem;text-transform:uppercase;letter-spacing:.04em;padding:.06rem .3rem;border-radius:4px;margin-left:.35rem}
+.lrow.sharp .lname em{background:var(--infl-d);color:var(--infl)}
+.lrow.you .lname em{background:var(--acc);color:#fff}
+.lrow .lval{font-family:"Barlow Condensed";font-weight:700;font-size:.92rem;color:var(--txt)}
+.lmed{font-size:.6rem;color:var(--dim);text-align:right;margin-top:.15rem;padding-right:.35rem}
 
 .why-btn{width:100%;background:var(--panel2);border:none;border-top:1px solid var(--line);color:var(--mid);
   font-size:.72rem;font-weight:600;padding:.55rem;display:flex;align-items:center;justify-content:center;gap:.35rem}
@@ -343,6 +352,7 @@ main{padding:.4rem 1rem 3rem}
           <tr><th>Signal</th><th>What it means</th><th>Weight</th></tr>
           <tr><td><b>Book vs. Sharp</b></td><td>Your book's total minus a sharp book (Pinnacle). Pure, weather-neutral inflation.</td><td class="wt">×1.0</td></tr>
           <tr><td><b>Line move</b></td><td>How far the total has drifted up since it opened.</td><td class="wt">×0.6</td></tr>
+          <tr><td><b>Market outlier</b></td><td>Your book's total tops the entire field of books — the softest number out there.</td><td class="wt">+0.3</td></tr>
           <tr><td><b>Primetime</b></td><td>SNF/MNF/TNF draw the most public over money.</td><td class="wt">+0.4</td></tr>
           <tr><td><b>Public team</b></td><td>Marquee offenses attract over bets.</td><td class="wt">+0.15–0.3</td></tr>
           <tr><td><b>Division game</b></td><td>Familiar rivals trend a touch lower-scoring.</td><td class="wt">+0.3</td></tr>
@@ -502,12 +512,20 @@ function computeInflation(g, retail){
   add(bigFav,'📉','Big favorite — clock control',0.2);
   add(travel,'✈️','West team, early body-clock',0.3);
   add(shortWeek,'🗓️','Short week (Thursday)',0.2);
+  // Consensus outlier — your book sits at the very top of the whole market
+  const totals = g.books ? Object.values(g.books).filter(isNum) : [];
+  const consensusN = totals.length;
+  const belowCount = isNum(retail) ? totals.filter(t=>t<retail).length : 0;
+  const isOutlier = consensusN>=3 && isNum(retail) && isNum(g.medianTotal)
+    && retail>=Math.max(...totals) && retail>g.medianTotal;
+  add(isOutlier,'📊','Highest total on the market',0.3);
   situational=+situational.toFixed(2);
 
   const marketPart = marketInflation*1.0 + Math.max(0,lineMove)*0.6;
   const inflationPts = +(marketPart + situational).toFixed(2);
   const score = Math.round(Math.max(0,Math.min(100, 50 + inflationPts*10)));
   return {sharp,hasSharp,marketInflation,lineMove,situational,sit,marketPart,inflationPts,score,
+    consensusN,belowCount,isOutlier,
     flags:{prime,early,shortWeek,division,bigFav,travel,publicTeam}};
 }
 
@@ -620,6 +638,8 @@ async function attachWeather(games){
 }
 const normTeam=s=>(s||'').toLowerCase().replace(/[^a-z]/g,'');
 function medianOf(arr){ if(!arr.length)return null; const a=[...arr].sort((x,y)=>x-y); return a[Math.floor(a.length/2)]; }
+const BOOK_LABELS={pinnacle:'Pinnacle',fanduel:'FanDuel',draftkings:'DraftKings',betmgm:'BetMGM',
+  caesars:'Caesars',lowvig:'LowVig',betonlineag:'BetOnline'};
 
 async function applyOdds(games){
   const key=localStorage.getItem('uc_oddskey'); if(!key) return;
@@ -637,7 +657,8 @@ async function applyOdds(games){
     if(tot[book]!=null){ g.marketTotal=tot[book]; g.liveTotal=tot[book]; g.book=label; }
     if(tot[CFG.sharpBook]!=null) g.sharpTotal=tot[CFG.sharpBook];
     g.medianTotal=medianOf(Object.values(tot));
-    g.spread=medianOf(Object.values(rec.spr)); });
+    g.spread=medianOf(Object.values(rec.spr));
+    g.books=tot; g.bookKey=book; });                 // full per-book totals for the ladder
 }
 async function applyLineMovement(games){
   const key=localStorage.getItem('uc_oddskey'); if(!key||localStorage.getItem('uc_linemove')==='0') return;
@@ -761,6 +782,26 @@ function compRow(icon,name,detail,val,pos){ const active=Math.abs(val)>0.001,pct
 
 function infTier(pts){ return pts>=2?'s3':pts>=1?'s2':pts>0.01?'s1':'s0'; }
 
+// The whole-market picture: where every book's total sits, sharp + your book tagged.
+function bookLadder(G){
+  const inf=G.inf; let rows=[];
+  if(G.books && Object.keys(G.books).length){
+    rows = Object.entries(G.books).filter(([,v])=>isNum(v))
+      .map(([k,v])=>({name:BOOK_LABELS[k]||k, v:+v, sharp:k===CFG.sharpBook, you:k===G.bookKey}));
+  } else {                                            // no odds key / sample — show the anchors we have
+    if(G.retail!=null) rows.push({name:G.book||'Your book', v:G.retail, you:true});
+    if(inf.sharp!=null && inf.sharp!==G.retail) rows.push({name:inf.hasSharp?'Pinnacle':'Market median', v:inf.sharp, sharp:true});
+    if(rows.length<2) return '';
+  }
+  rows.sort((a,b)=>b.v-a.v);
+  const outlier = inf.isOutlier ? ` · <span style="color:var(--infl)">your book tops all ${inf.consensusN}</span>` : '';
+  return `<div class="ladder"><div class="lcap">The whole market${outlier}</div>
+    ${rows.map(r=>`<div class="lrow ${r.you?'you':''} ${r.sharp?'sharp':''}">
+      <span class="lname">${r.name}${r.sharp?' <em>sharp</em>':''}${r.you?' <em>you</em>':''}</span>
+      <span class="lval">${r.v}</span></div>`).join('')}
+    ${G.medianTotal!=null?`<div class="lmed">market median ${G.medianTotal}</div>`:''}</div>`;
+}
+
 function whyHTML(G){ const we=G.we,w=G.weather||{},inf=G.inf;
   // Inflation block
   let infRows='';
@@ -784,6 +825,7 @@ function whyHTML(G){ const we=G.we,w=G.weather||{},inf=G.inf;
   return `<div class="why" id="why-${G.id}">
     <h5>Inflation — market signals <span class="sub">Score ${inf.score}/100</span></h5>
     ${infRows}
+    ${bookLadder(G)}
     <div class="wsum"><span>Inflation subtotal (pre-weather)</span><b class="cond" style="color:var(--infl)">+${inf.inflationPts}</b></div>
     <h5>Weather <span class="sub">${we.penalty>0?`model −${we.penalty} · 40% unpriced`:'no weather'}</span></h5>
     ${weatherRows}
