@@ -159,6 +159,17 @@ main{padding:.4rem 1rem 3rem}
 .pace .tag2{margin-left:auto;font-size:.62rem;font-weight:700;padding:.15rem .45rem;border-radius:6px}
 .pace .tag2.u{background:var(--under-d);color:var(--under)}
 .pace .tag2.o{background:#2a1512;color:var(--hot)}
+.pace .lclock{color:var(--hot);font-weight:600}
+/* live total-over-time trend */
+.ttrend{margin:.5rem .9rem 0;display:flex;align-items:center;gap:.5rem;font-size:.72rem;color:var(--dim)}
+.ttrend .tl{text-transform:uppercase;letter-spacing:.06em;font-size:.58rem}
+.ttrend .tvals b{color:var(--txt);font-family:"Barlow Condensed";font-size:1.05rem}
+.ttrend .ar{color:var(--dim);margin:0 .1rem}
+.ttrend .td{font-weight:700;font-family:"Barlow Condensed";font-size:.9rem}
+.ttrend .td.up{color:var(--warn)}.ttrend .td.dn{color:var(--under)}
+.ttrend .spark{width:92px;height:26px;margin-left:auto;flex-shrink:0;overflow:visible}
+.livepulse{display:inline-flex;align-items:center;gap:.3rem}
+.livepulse::before{content:"";width:6px;height:6px;border-radius:50%;background:var(--hot);animation:pulse 1.6s infinite}
 
 /* why breakdown */
 .why-btn{width:100%;background:var(--panel2);border:none;border-top:1px solid var(--line);
@@ -820,10 +831,11 @@ function setLoading(on){
 function setStatus(){
   const ds=document.getElementById('dstat'), txt=document.getElementById('dstatTxt');
   const scope = LEAGUE==='cfb' ? ('College · ' + (CONFERENCES.find(c=>c.id===CONF)||{}).name) : 'NFL';
+  const liveAuto = MODE==='live' ? ` · <span class="livepulse">auto-updating every 60s</span>` : '';
   if(STATE.live){ ds.className='dstat on';
-    txt.innerHTML = `<b>${scope}</b> · live ESPN + Open-Meteo`; }
+    txt.innerHTML = `<b>${scope}</b> · live ESPN + Open-Meteo${liveAuto}`; }
   else { ds.className='dstat off';
-    txt.innerHTML = `<b>${scope}</b> · sample slate — deploy for live data`; }
+    txt.innerHTML = `<b>${scope}</b> · sample slate${MODE==='live'?` · <span class="livepulse">simulated live demo</span>`:' — deploy for live data'}`; }
 }
 
 async function loadData(){
@@ -853,8 +865,81 @@ async function loadData(){
     STATE.live=false; STATE.err=e.message; STATE.week=null; STATE.season=2026;
   }
   setLoading(false);
+  STATE.games.forEach(recordTotal);
   renderAll();
 }
+
+/* ---------- LIVE: score, total-over-time, ~1-min auto-refresh ---------- */
+let LIVE_TIMER=null, REFRESHING=false, LAST_TICK=0;
+
+// per-game total history in the browser (builds a real trend while you watch)
+const histKey = id => 'uc_h_'+id;
+function getHist(id){ try{ return JSON.parse(localStorage.getItem(histKey(id))||'[]'); }catch(e){ return []; } }
+function recordTotal(g){
+  const v = (MODE==='live' ? (g.liveTotal ?? g.marketTotal) : g.marketTotal);
+  if(v==null || isNaN(v)) return;
+  const h = getHist(g.id), last = h[h.length-1], now = Date.now();
+  if(!last || last.v!==+v || now-last.t > 5*60000) h.push({t:now, v:+v});   // on change, or a 5-min heartbeat
+  while(h.length>240) h.shift();
+  try{ localStorage.setItem(histKey(g.id), JSON.stringify(h)); }catch(e){}
+}
+function sparkline(h){
+  if(!h || h.length<2) return '';
+  const vs=h.map(p=>p.v), min=Math.min(...vs), max=Math.max(...vs), span=(max-min)||1, n=h.length, w=92, ht=26;
+  const pts=h.map((p,i)=>`${(i/(n-1)*(w-4)+2).toFixed(1)},${(ht-3-((p.v-min)/span)*(ht-6)).toFixed(1)}`).join(' ');
+  const up=vs[n-1]>vs[0], col=up?'var(--warn)':vs[n-1]<vs[0]?'var(--under)':'var(--mid)';
+  const lx=(w-2), ly=ht-3-((vs[n-1]-min)/span)*(ht-6);
+  return `<svg class="spark" viewBox="0 0 ${w} ${ht}" preserveAspectRatio="none">
+    <polyline points="${pts}" fill="none" stroke="${col}" stroke-width="1.6" stroke-linejoin="round"/>
+    <circle cx="${lx.toFixed(1)}" cy="${ly.toFixed(1)}" r="2" fill="${col}"/></svg>`;
+}
+function totalTrend(g){
+  if(MODE!=='live') return '';
+  const h=getHist(g.id); if(!h || h.length<2) return '';
+  const open=h[0].v, now=h[h.length-1].v, d=+(now-open).toFixed(1);
+  return `<div class="ttrend"><span class="tl">Total</span>
+    <span class="tvals">${open} <span class="ar">→</span> <b>${now}</b>
+      <span class="td ${d>0?'up':d<0?'dn':''}">${d>0?'+':''}${d||'0'}</span></span>
+    ${sparkline(h)}</div>`;
+}
+
+async function refreshLiveData(){
+  const url = LEAGUE==='cfb' ? (CFB_URL + (CONF==='top25'?'?groups=80&limit=200':`?groups=${CONF}&limit=200`)) : ESPN_URL;
+  const d = await fetchJSON(url, 9000);
+  const fresh = LEAGUE==='cfb' ? buildGamesFromCFB(d) : buildGamesFromESPN(d);
+  const byId={}; fresh.forEach(f=>byId[f.id]=f);
+  STATE.games.forEach(g=>{ const f=byId[g.id]; if(!f) return;   // patch scores + totals, keep weather/venue
+    g.live=f.live; g.marketTotal=f.marketTotal; g.liveTotal=f.liveTotal; });
+  try{ if(localStorage.getItem('uc_oddskey')) await applyOddsAPI(STATE.games); }catch(e){}
+  STATE.games.forEach(recordTotal);
+}
+// sample-mode demo: make a couple of games "live" and nudge score/total so the feature is visible
+function simulateLiveTick(){
+  const live = STATE.games.slice(0,3);
+  live.forEach((g,i)=>{
+    const L=g.live;
+    if(L.state!=='in'){ L.state='in'; L.period=1; L.clock='15:00'; L.homeScore=0; L.awayScore=0; }
+    let [m,s]=(L.clock||'15:00').split(':').map(Number); s-=Math.round(45+Math.random()*30);
+    while(s<0){ s+=60; m--; } if(m<0){ if(L.period<4){ L.period++; m=14; s=30; } else { L.state='post'; } }
+    L.clock=`${m}:${String(s).padStart(2,'0')}`;
+    if(Math.random()<0.25){ const pts=[3,7][Math.random()<.5?0:1]; if(Math.random()<.5)L.homeScore=+L.homeScore+pts; else L.awayScore=+L.awayScore+pts; }
+    if(g.roof==='open' && Math.random()<0.3){ g.liveTotal=+( (g.liveTotal ?? g.marketTotal) + (Math.random()<.5?-0.5:0.5) ).toFixed(1); }
+    if(L.state==='in') Object.assign(L, livePace({period:L.period,displayClock:L.clock}, L.homeScore, L.awayScore));
+  });
+  STATE.games.forEach(recordTotal);
+}
+async function tickLive(){
+  if(REFRESHING || MODE!=='live') return;
+  REFRESHING=true; document.getElementById('refreshBtn').classList.add('spin');
+  try{ if(STATE.live) await refreshLiveData(); else simulateLiveTick(); LAST_TICK=Date.now(); }catch(e){}
+  REFRESHING=false; document.getElementById('refreshBtn').classList.remove('spin');
+  renderAll();
+}
+function startLiveLoop(){ stopLiveLoop(); if(MODE!=='live') return;
+  const ms = STATE.live ? 60000 : 9000;   // real data: every 60s; sample demo: faster so it's visibly live
+  LIVE_TIMER=setInterval(()=>{ if(!document.hidden) tickLive(); }, ms); }
+function stopLiveLoop(){ if(LIVE_TIMER){ clearInterval(LIVE_TIMER); LIVE_TIMER=null; } }
+document.addEventListener('visibilitychange', ()=>{ if(!document.hidden && MODE==='live') tickLive(); });
 
 /* ---------- SETTINGS ---------- */
 function openSettings(){
@@ -879,7 +964,8 @@ function setMode(m){
   MODE=m;
   document.getElementById('mPre').classList.toggle('on', m==='pre');
   document.getElementById('mLive').classList.toggle('on', m==='live');
-  renderAll();
+  if(m==='live'){ renderAll(); startLiveLoop(); tickLive(); }   // kick an immediate update, then every 60s
+  else { stopLiveLoop(); renderAll(); }
 }
 function setLeague(l){
   if(l===LEAGUE) return;
@@ -978,9 +1064,11 @@ function paceStrip(g){
   const L=g.live; if(MODE!=='live'||!L||L.state!=='in'||L.pace==null) return '';
   const u = g.e.hasLine && L.pace < g.e.market;
   return `<div class="pace">
-    <span class="pl">Score</span><span class="pv">${L.awayScore}–${L.homeScore}</span>
-    <span class="pl">Pace</span><span class="pv">${L.pace}</span>
-    ${g.e.hasLine?`<span class="tag2 ${u?'u':'o'}">${u?'▼ Trending under':'▲ Over pace'}</span>`:''}</div>`;
+    <span class="pl">${g.awayAb}</span><span class="pv">${L.awayScore}</span>
+    <span class="pl">${g.homeAb}</span><span class="pv">${L.homeScore}</span>
+    <span class="lclock">Q${L.period} ${L.clock||''}</span>
+    <span class="pl">pace</span><span class="pv">${L.pace}</span>
+    ${g.e.hasLine?`<span class="tag2 ${u?'u':'o'}">${u?'▼ under':'▲ over'}</span>`:''}</div>`;
 }
 function gameCard(g){
   const e=g.e;
@@ -988,7 +1076,7 @@ function gameCard(g){
   const barPct = Math.min(e.penalty/5*100,100);
   const leanPill = e.lean==='under' ? `<span class="leanpill u">▼ Under</span>`
     : `<span class="leanpill n">${e.hasLine?'No edge':'No line'}</span>`;
-  const L=g.live, liveTag = (MODE==='live'&&L&&L.state==='in') ? `<span class="livedot">LIVE Q${L.period}</span>`
+  const L=g.live, liveTag = (MODE==='live'&&L&&L.state==='in') ? `<span class="livedot">LIVE Q${L.period} ${L.clock||''}</span>`
     : (L&&L.state==='post') ? `<span style="color:var(--dim)">Final</span>` : '';
   return `<div class="${cls}">
     <div class="g-top">
@@ -1014,6 +1102,7 @@ function gameCard(g){
     </div>
     <div class="edgebar"><i style="width:${barPct}%"></i></div>
     ${paceStrip(g)}
+    ${totalTrend(g)}
     <button class="why-btn" onclick="toggleWhy('${g.id}',this)">
       ${e.penalty>0?`Weather edge −${e.penalty} pts`:'No weather edge'} · Why <span class="cx">▾</span></button>
     ${whyHTML(g)}
