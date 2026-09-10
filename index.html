@@ -497,7 +497,9 @@ main{padding:.4rem 1rem 3rem}
     <h3>Settings</h3>
     <p class="sh-sub">Optional. Out of the box, UnderCast uses ESPN's consensus over/under.
       Add a key to pull exact book lines.</p>
-    <div class="fld">
+    <div id="proxyNote" class="hint" style="display:none;margin:-.3rem 0 .6rem;color:var(--under)">
+      ✓ Live book lines are already on for this link — no key needed. Pick your book below.</div>
+    <div class="fld" id="keyFld">
       <label>The Odds API key</label>
       <input id="oddsKey" type="text" placeholder="paste key (optional)" autocomplete="off" spellcheck="false">
       <div class="hint">Free tier at <a href="https://the-odds-api.com" target="_blank" rel="noopener">the-odds-api.com</a>.
@@ -508,6 +510,10 @@ main{padding:.4rem 1rem 3rem}
       <select id="bookSel">
         <option value="fanduel">FanDuel</option>
         <option value="draftkings">DraftKings</option>
+        <option value="betmgm">BetMGM</option>
+        <option value="caesars">Caesars</option>
+        <option value="betrivers">BetRivers</option>
+        <option value="espnbet">ESPN BET</option>
       </select>
     </div>
     <div class="sheet-btns">
@@ -723,12 +729,22 @@ const ODDS_BOOKS = 'draftkings,fanduel,betmgm,caesars,betrivers,espnbet';
 const BOOK_LABELS = {draftkings:'DraftKings',fanduel:'FanDuel',betmgm:'BetMGM',
   caesars:'Caesars',betrivers:'BetRivers',espnbet:'ESPN BET'};
 const medianOf = arr => { if(!arr.length) return null; const a=[...arr].sort((x,y)=>x-y); return a[Math.floor(a.length/2)]; };
+
+// Shared-key proxy: paste your deployed Cloudflare Worker URL here to give live
+// odds to everyone who opens the link, without exposing the key (see worker/).
+// Left blank → falls back to a personal key from ⚙ Settings (localStorage).
+const ODDS_PROXY = '';
+const proxyOn = () => /^https:\/\//.test(ODDS_PROXY);
+const oddsEnabled = () => proxyOn() || !!localStorage.getItem('uc_oddskey');
 async function applyOddsAPI(games){
-  const key = localStorage.getItem('uc_oddskey'); if(!key) return null;
+  const key = localStorage.getItem('uc_oddskey');
+  if(!proxyOn() && !key) return null;
   const book = localStorage.getItem('uc_book') || 'fanduel';
   const sport = LEAGUE==='cfb' ? 'americanfootball_ncaaf' : 'americanfootball_nfl';
-  const u = `https://api.the-odds-api.com/v4/sports/${sport}/odds/?apiKey=${encodeURIComponent(key)}`
-    + `&regions=us&markets=totals&oddsFormat=american&bookmakers=${ODDS_BOOKS}`;
+  const qs = `regions=us&markets=totals&oddsFormat=american&bookmakers=${ODDS_BOOKS}`;
+  const u = proxyOn()
+    ? `${ODDS_PROXY.replace(/\/$/,'')}/v4/sports/${sport}/odds/?${qs}`     // key added server-side by the Worker
+    : `https://api.the-odds-api.com/v4/sports/${sport}/odds/?apiKey=${encodeURIComponent(key)}&${qs}`;
   const arr = await fetchJSON(u);
   const map = {};
   (arr||[]).forEach(o=>{
@@ -953,7 +969,7 @@ async function refreshLiveData(){
   STATE.games.forEach(g=>{ const f=byId[g.id]; if(!f) return;   // patch scores + totals, keep weather/venue
     g.live=f.live; g.marketTotal=f.marketTotal; g.liveTotal=f.liveTotal; });
   // live book line: refresh at most every ~90s to conserve odds-API credits (scores come free from ESPN each tick)
-  try{ if(localStorage.getItem('uc_oddskey') && Date.now()-LAST_ODDS>85000){ await applyOddsAPI(STATE.games); LAST_ODDS=Date.now(); } }catch(e){}
+  try{ if(oddsEnabled() && Date.now()-LAST_ODDS>85000){ await applyOddsAPI(STATE.games); LAST_ODDS=Date.now(); } }catch(e){}
   STATE.games.forEach(recordTotal);
 }
 // sample-mode demo: make a couple of games "live" and nudge score/total so the feature is visible
@@ -996,6 +1012,9 @@ document.addEventListener('visibilitychange', ()=>{ if(!document.hidden && MODE=
 function openSettings(){
   document.getElementById('oddsKey').value = localStorage.getItem('uc_oddskey')||'';
   document.getElementById('bookSel').value = localStorage.getItem('uc_book')||'fanduel';
+  // When the shared proxy is live, a personal key is optional — surface that.
+  document.getElementById('proxyNote').style.display = proxyOn() ? 'block' : 'none';
+  document.getElementById('keyFld').style.display = proxyOn() ? 'none' : 'block';
   document.getElementById('settings').classList.add('open');
 }
 function closeSettings(){ document.getElementById('settings').classList.remove('open'); }

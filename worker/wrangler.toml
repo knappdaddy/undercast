@@ -1,0 +1,11 @@
+name = "undercast-odds"
+main = "undercast-odds.js"
+compatibility_date = "2024-11-01"
+
+# ── Optional: per-IP daily rate limiting ─────────────────────────────────
+# Create the namespace once:
+#     npx wrangler kv namespace create RL
+# then paste the printed id below and uncomment both lines.
+# [[kv_namespaces]]
+# binding = "RL"
+# id = "PASTE_KV_NAMESPACE_ID_HERE"
