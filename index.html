@@ -193,6 +193,22 @@ main{padding:.4rem 1rem 3rem}
 .wsum b{font-family:"Barlow Condensed";font-size:1.15rem}
 .forecast{font-size:.72rem;color:var(--dim);margin-top:.55rem;line-height:1.5;font-style:italic}
 
+/* ---- book ladder (line shopping) ---- */
+.ladder{margin:.7rem 0 .1rem;background:var(--bg);border:1px solid var(--line2);border-radius:9px;padding:.4rem .45rem}
+.lcap{font-size:.58rem;color:var(--dim);text-transform:uppercase;letter-spacing:.07em;padding:.1rem .35rem .3rem;line-height:1.4}
+.lrow{display:flex;justify-content:space-between;align-items:center;font-size:.74rem;
+  padding:.24rem .4rem;border-radius:6px;color:var(--mid)}
+.lrow.you{background:var(--panel2);color:var(--txt)}
+.lrow.best .lval{color:var(--under)}
+.lrow .lname{display:flex;align-items:center;gap:.35rem}
+.lrow .lname em{font-style:normal;font-size:.52rem;text-transform:uppercase;letter-spacing:.04em;
+  padding:.07rem .32rem;border-radius:4px}
+.lrow.you .lname em{background:var(--acc);color:#fff}
+.lrow .lname .bestpin{font-size:.52rem;text-transform:uppercase;letter-spacing:.04em;
+  padding:.07rem .32rem;border-radius:4px;background:var(--under-d);color:var(--under)}
+.lrow .lval{font-family:"Barlow Condensed";font-weight:700;font-size:.98rem;color:var(--txt)}
+.lmed{font-size:.6rem;color:var(--dim);text-align:right;margin-top:.2rem;padding-right:.4rem}
+
 /* ---- locks & parlays ---- */
 .sec-h{font-family:"Barlow Condensed";font-size:1.35rem;font-weight:700;margin:.4rem 0 .2rem;
   display:flex;align-items:center;gap:.45rem}
@@ -702,21 +718,32 @@ async function attachWeather(games){
 }
 
 const normTeam = s => (s||'').toLowerCase().replace(/[^a-z]/g,'');
+// US books for the line-shopping ladder — all fit in one `regions=us` call (1 credit).
+const ODDS_BOOKS = 'draftkings,fanduel,betmgm,caesars,betrivers,espnbet';
+const BOOK_LABELS = {draftkings:'DraftKings',fanduel:'FanDuel',betmgm:'BetMGM',
+  caesars:'Caesars',betrivers:'BetRivers',espnbet:'ESPN BET'};
+const medianOf = arr => { if(!arr.length) return null; const a=[...arr].sort((x,y)=>x-y); return a[Math.floor(a.length/2)]; };
 async function applyOddsAPI(games){
   const key = localStorage.getItem('uc_oddskey'); if(!key) return null;
   const book = localStorage.getItem('uc_book') || 'fanduel';
   const sport = LEAGUE==='cfb' ? 'americanfootball_ncaaf' : 'americanfootball_nfl';
   const u = `https://api.the-odds-api.com/v4/sports/${sport}/odds/?apiKey=${encodeURIComponent(key)}`
-    + `&regions=us&markets=totals&oddsFormat=american&bookmakers=${book}`;
+    + `&regions=us&markets=totals&oddsFormat=american&bookmakers=${ODDS_BOOKS}`;
   const arr = await fetchJSON(u);
   const map = {};
   (arr||[]).forEach(o=>{
-    const bm = (o.bookmakers||[]).find(b=>b.key===book); if(!bm) return;
-    const m = (bm.markets||[]).find(x=>x.key==='totals'); if(!m||!m.outcomes) return;
-    const pt = m.outcomes[0] && m.outcomes[0].point; if(pt!=null) map[normTeam(o.home_team)] = +pt;
+    const tot = {};
+    (o.bookmakers||[]).forEach(b=>{ const m=(b.markets||[]).find(x=>x.key==='totals');
+      const ov=m&&(m.outcomes||[]).find(x=>x.name==='Over'); if(ov&&ov.point!=null) tot[b.key]=+ov.point; });
+    if(Object.keys(tot).length) map[normTeam(o.home_team)] = tot;
   });
-  const label = book==='fanduel' ? 'FanDuel' : 'DraftKings';
-  games.forEach(g=>{ const pt = map[normTeam(g.home)]; if(pt!=null){ g.marketTotal=pt; g.liveTotal=pt; g.book=label; } });
+  const label = BOOK_LABELS[book] || (book==='fanduel'?'FanDuel':'DraftKings');
+  games.forEach(g=>{ const tot = map[normTeam(g.home)]; if(!tot) return;
+    g.books = tot; g.bookKey = book; g.medianTotal = medianOf(Object.values(tot));
+    // Anchor the model on the user's book if present, else the market median.
+    const pt = tot[book]!=null ? tot[book] : g.medianTotal;
+    if(pt!=null){ g.marketTotal=pt; g.liveTotal=pt; g.book = tot[book]!=null ? label : 'Market median'; }
+  });
   return label;
 }
 
@@ -797,6 +824,16 @@ function sampleCFB(){
     g(18,'Iowa','IOWA',null,'Syracuse','SYR','JMA Wireless Dome','Syracuse, NY','dome','Sat 12:00 PM ET',43.5,42.5, {indoorNeutral:true})
   ];
 }
+// Demo only: synthesize a realistic per-book spread around the sample total so
+// the line-shopping ladder is visible in the offline preview. Never runs on live data.
+function seedDemoBooks(games){
+  const offsets = {draftkings:0, fanduel:0.5, betmgm:-0.5, caesars:1, betrivers:0, espnbet:-1};
+  games.forEach(g=>{ if(g.marketTotal==null) return;
+    const books={}; Object.entries(offsets).forEach(([k,o])=>{ books[k]=+(g.marketTotal+o).toFixed(1); });
+    g.books=books; g.bookKey='fanduel'; g.book='FanDuel';
+    g.marketTotal=g.liveTotal=books.fanduel; g.medianTotal=medianOf(Object.values(books));
+  });
+}
 function sampleGames(){
   const w=(tempF,windMph,gust,precipType,precipIntensity,precipProb,humidity,sky)=>
     ({tempF,windMph,gust,precipType,precipIntensity,precipProb,humidity,sky});
@@ -866,6 +903,7 @@ async function loadData(){
     STATE.games=games; STATE.live=true; STATE.err=null;
   }catch(e){
     STATE.games = LEAGUE==='cfb' ? sampleCFB() : sampleGames();
+    seedDemoBooks(STATE.games);
     STATE.live=false; STATE.err=e.message; STATE.week=null; STATE.season=2026;
   }
   setLoading(false);
@@ -1045,20 +1083,39 @@ function compRow(icon,name,detail,val){
     ${active?`<span class="track"><i style="width:${pct}%"></i></span>`:''}
     <span class="cv ${active?'neg':'zero'}">${active?'−'+val.toFixed(1):'0'}</span></div>`;
 }
+// Line-shopping ladder: every book's total for this game, best number for the
+// under flagged. Pure convenience — no predictive claims. Shows with an odds key.
+function bookLadder(g){
+  if(!g.books) return '';
+  const rows = Object.entries(g.books).filter(([,v])=>v!=null)
+    .map(([k,v])=>({name:BOOK_LABELS[k]||k, v:+v, you:k===g.bookKey}))
+    .sort((a,b)=>b.v-a.v);
+  if(rows.length<2) return '';
+  const best = rows[0].v;                            // highest total = best price on the under
+  const rowHTML = r => `<div class="lrow ${r.you?'you':''} ${r.v===best?'best':''}">
+    <span class="lname">${r.name}${r.you?' <em>you</em>':''}${r.v===best?' <span class="bestpin">best under</span>':''}</span>
+    <span class="lval">${r.v}</span></div>`;
+  return `<div class="ladder"><div class="lcap">Line shopping · highest total is the best price on the under</div>
+    ${rows.map(rowHTML).join('')}
+    ${g.medianTotal!=null?`<div class="lmed">market median ${g.medianTotal}</div>`:''}</div>`;
+}
 function whyHTML(g){
   const e=g.e, w=g.weather||{};
+  const ladder = bookLadder(g);
   if(e.indoor || w.indoorNeutral){
     return `<div class="why" id="why-${g.id}"><h5>Why — weather breakdown</h5>
       <div class="comp"><span class="ci">🏟️</span><span class="cn">
       Venue is ${g.roof==='dome'?'a dome':g.roof==='fixed'?'a fixed-roof stadium':'roof-closed'}.
       Weather is sealed out, so the model applies <b>no adjustment</b>.</span><span class="cv zero">0</span></div>
       <div class="wsum"><span>Adjusted total</span>
-      <b>${e.hasLine?e.adjusted:'—'} <span style="color:var(--dim);font-size:.8rem">(no edge)</span></b></div></div>`;
+      <b>${e.hasLine?e.adjusted:'—'} <span style="color:var(--dim);font-size:.8rem">(no edge)</span></b></div>
+      ${ladder}</div>`;
   }
   if(w.unknown){
     return `<div class="why" id="why-${g.id}"><h5>Why</h5>
       <div class="comp"><span class="ci">🌫️</span><span class="cn">Forecast wasn't available for this venue
-      at kickoff, so no weather adjustment was applied.</span><span class="cv zero">0</span></div></div>`;
+      at kickoff, so no weather adjustment was applied.</span><span class="cv zero">0</span></div>
+      ${ladder}</div>`;
   }
   return `<div class="why" id="why-${g.id}"><h5>Why — weather breakdown</h5>
     ${compRow('🌬️','Wind',`${w.windMph} mph sustained`,e.comps.wind)}
@@ -1071,7 +1128,8 @@ function whyHTML(g){
     <div class="wsum">
       <span>Market <b style="color:var(--dim)">${e.hasLine?e.market:'—'}</b> − Penalty <b style="color:var(--under)">${e.penalty}</b></span>
       <b class="cond">= ${e.hasLine?e.adjusted:'—'}</b></div>
-    <div class="forecast">📡 ${w.sky} · ${w.precipProb}% precip · ${w.humidity}% humidity</div></div>`;
+    <div class="forecast">📡 ${w.sky} · ${w.precipProb}% precip · ${w.humidity}% humidity</div>
+    ${ladder}</div>`;
 }
 function paceStrip(g){
   const L=g.live; if(MODE!=='live'||!L||L.state!=='in'||L.pace==null) return '';
