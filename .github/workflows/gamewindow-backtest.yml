@@ -1,0 +1,28 @@
+name: Game-Window Backtest
+
+# Does averaging weather over the ~3-hour game window beat using just the
+# kickoff hour? Runs the calibrated model both ways and compares under rates.
+# Open-Meteo archive (reachable in Actions). No key.
+
+on:
+  workflow_dispatch:
+    inputs:
+      seasons:
+        description: "Season range (e.g. 2016-2024)"
+        default: "2016-2024"
+        required: true
+
+jobs:
+  gamewindow:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - name: Run game-window backtest
+        env:
+          SEASONS: ${{ inputs.seasons }}
+        run: |
+          node tools/backtest-gamewindow.mjs "$SEASONS" | tee /tmp/out.txt
+          { echo '### Game-window backtest — '"$SEASONS"; echo '```'; cat /tmp/out.txt; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
