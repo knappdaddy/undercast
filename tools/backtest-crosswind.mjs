@@ -57,9 +57,18 @@ function pcaBearing(pts, lat0){
 function bboxDiag(pts, lat0){ const clat=Math.cos(lat0*Math.PI/180);
   const xs=pts.map(p=>p[1]*111320*clat), ys=pts.map(p=>p[0]*110540);
   return Math.hypot(Math.max(...xs)-Math.min(...xs), Math.max(...ys)-Math.min(...ys)); }
-async function overpass(q){ const r=await fetch(OVERPASS,{method:'POST',
-  headers:{'Content-Type':'application/x-www-form-urlencoded'}, body:'data='+encodeURIComponent(q)});
-  if(!r.ok) throw new Error('overpass '+r.status); return r.json(); }
+let OSM_ERR='';
+async function overpass(q){
+  for(let att=0; att<4; att++){
+    const r=await fetch(OVERPASS,{method:'POST', headers:{'Content-Type':'application/x-www-form-urlencoded',
+      'User-Agent':'UnderCast-research/1.0 (nfl weather backtest; contact via github)'}, body:'data='+encodeURIComponent(q)});
+    if(r.ok) return r.json();
+    OSM_ERR=`HTTP ${r.status}`;
+    if(r.status===429||r.status>=500){ await sleep(1500*(att+1)); continue; }
+    throw new Error('overpass '+r.status);
+  }
+  throw new Error('overpass retries exhausted '+OSM_ERR);
+}
 async function osmAzimuth(lat,lon){
   const tryQ = async filt => { const d=await overpass(`[out:json][timeout:25];way(around:230,${lat},${lon})${filt};out geom;`);
     return (d.elements||[]).filter(e=>e.geometry&&e.geometry.length>=4); };
@@ -116,7 +125,7 @@ function line(label,t,base){ const flag=t.pct>=BREAKEVEN?'  ✅':(t.pct<=100-BRE
     console.log(`  ${abbr.padEnd(4)} ${az!=null?String(az).padStart(3)+'° (osm)':' —  (est '+est+'°)'}${diff!=null?`  Δest ${diff}°`:''}`);
     await sleep(500);
   }
-  console.log(`  → ${osmN}/${Object.keys(V).length} venues from OSM\n`);
+  console.log(`  → ${osmN}/${Object.keys(V).length} venues from OSM${osmN===0&&OSM_ERR?` (overpass said: ${OSM_ERR})`:''}\n`);
 
   // 2) games + weather
   const games=all.filter(r=>+r.season>=LO && +r.season<=HI && r.game_type==='REG' && (r.roof==='outdoors'||r.roof==='open'))
