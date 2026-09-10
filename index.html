@@ -831,11 +831,15 @@ function setLoading(on){
 function setStatus(){
   const ds=document.getElementById('dstat'), txt=document.getElementById('dstatTxt');
   const scope = LEAGUE==='cfb' ? ('College · ' + (CONFERENCES.find(c=>c.id===CONF)||{}).name) : 'NFL';
-  const liveAuto = MODE==='live' ? ` · <span class="livepulse">auto-updating every 60s</span>` : '';
+  const anyLive = STATE.games.some(g=>g.live && g.live.state==='in');
+  const ago = LAST_TICK ? `updated ${Math.max(0,Math.round((Date.now()-LAST_TICK)/1000))}s ago` : 'starting…';
+  const every = anyLive ? '30s' : '60s';
   if(STATE.live){ ds.className='dstat on';
-    txt.innerHTML = `<b>${scope}</b> · live ESPN + Open-Meteo${liveAuto}`; }
+    txt.innerHTML = MODE==='live'
+      ? `<span class="livepulse"><b>${scope} LIVE</b></span> · ${ago} · every ${every}`
+      : `<b>${scope}</b> · live ESPN + Open-Meteo`; }
   else { ds.className='dstat off';
-    txt.innerHTML = `<b>${scope}</b> · sample slate${MODE==='live'?` · <span class="livepulse">simulated live demo</span>`:' — deploy for live data'}`; }
+    txt.innerHTML = `<b>${scope}</b> · sample slate${MODE==='live'?` · <span class="livepulse">simulated live demo · ${ago}</span>`:' — deploy for live data'}`; }
 }
 
 async function loadData(){
@@ -870,7 +874,7 @@ async function loadData(){
 }
 
 /* ---------- LIVE: score, total-over-time, ~1-min auto-refresh ---------- */
-let LIVE_TIMER=null, REFRESHING=false, LAST_TICK=0;
+let LIVE_TIMER=null, FRESH_TIMER=null, REFRESHING=false, LAST_TICK=0, LAST_ODDS=0;
 
 // per-game total history in the browser (builds a real trend while you watch)
 const histKey = id => 'uc_h_'+id;
@@ -910,7 +914,8 @@ async function refreshLiveData(){
   const byId={}; fresh.forEach(f=>byId[f.id]=f);
   STATE.games.forEach(g=>{ const f=byId[g.id]; if(!f) return;   // patch scores + totals, keep weather/venue
     g.live=f.live; g.marketTotal=f.marketTotal; g.liveTotal=f.liveTotal; });
-  try{ if(localStorage.getItem('uc_oddskey')) await applyOddsAPI(STATE.games); }catch(e){}
+  // live book line: refresh at most every ~90s to conserve odds-API credits (scores come free from ESPN each tick)
+  try{ if(localStorage.getItem('uc_oddskey') && Date.now()-LAST_ODDS>85000){ await applyOddsAPI(STATE.games); LAST_ODDS=Date.now(); } }catch(e){}
   STATE.games.forEach(recordTotal);
 }
 // sample-mode demo: make a couple of games "live" and nudge score/total so the feature is visible
@@ -935,10 +940,18 @@ async function tickLive(){
   REFRESHING=false; document.getElementById('refreshBtn').classList.remove('spin');
   renderAll();
 }
+function liveDelay(){                                    // adaptive: fast while games are actually in progress
+  if(!STATE.live) return 9000;                          // sample demo
+  return STATE.games.some(g=>g.live && g.live.state==='in') ? 30000 : 60000;
+}
+function scheduleLive(){ if(MODE!=='live') return;
+  LIVE_TIMER=setTimeout(async()=>{ if(!document.hidden) await tickLive(); scheduleLive(); }, liveDelay()); }
 function startLiveLoop(){ stopLiveLoop(); if(MODE!=='live') return;
-  const ms = STATE.live ? 60000 : 9000;   // real data: every 60s; sample demo: faster so it's visibly live
-  LIVE_TIMER=setInterval(()=>{ if(!document.hidden) tickLive(); }, ms); }
-function stopLiveLoop(){ if(LIVE_TIMER){ clearInterval(LIVE_TIMER); LIVE_TIMER=null; } }
+  scheduleLive();
+  FRESH_TIMER=setInterval(setStatus, 5000);             // keep the "updated Xs ago" indicator fresh
+}
+function stopLiveLoop(){ if(LIVE_TIMER){ clearTimeout(LIVE_TIMER); LIVE_TIMER=null; }
+  if(FRESH_TIMER){ clearInterval(FRESH_TIMER); FRESH_TIMER=null; } }
 document.addEventListener('visibilitychange', ()=>{ if(!document.hidden && MODE==='live') tickLive(); });
 
 /* ---------- SETTINGS ---------- */

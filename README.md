@@ -1,74 +1,66 @@
-# UnderCast — NFL Weather Totals
+# UnderCast — NFL & College Weather Totals
 
 *Forecasting the under.*
 
-A mobile-first web app that flags NFL point totals (over/unders) that look **inflated given the
-weather** at the venue, and leans **UNDER** when the model disagrees with the sportsbook line.
+A mobile-first web app that flags point totals (over/unders) inflated by **weather** and leans
+**UNDER** when the model disagrees with the book. Single, dependency-free `index.html`.
 
-Open `index.html` in a browser (or serve it) — it's a single, dependency-free file.
+**Live:** deployed via GitHub Pages. Open `index.html` locally or serve it — it runs on live data
+straight from the browser (no build, no keys required for the basics).
 
-## Live data (no API key required)
+## The model — calibrated and validated on 15 years of results
 
-When deployed to a real web host, UnderCast pulls live data from two free, key-free sources:
+The edge is weather, and only weather. Every factor below was tested against real closing lines +
+results (2010–2024, nflverse) before being kept; the tooling lives in `tools/` and runs in CI.
 
-- **Schedule, venues & market totals** — [ESPN's public NFL scoreboard API](https://site.api.espn.com/apis/site/v2/sports/football/nfl/scoreboard)
-  (real games, kickoff times, indoor/outdoor flags, live scores, current over/under).
-- **Weather** — [Open-Meteo](https://open-meteo.com) forecast keyed to each stadium's coordinates,
-  matched to the kickoff hour (temperature, sustained wind, gusts, precipitation).
+`Adjusted Total = Market Total − Weather Penalty`, penalty = sum of:
 
-**Optional exact book lines:** add a free [The Odds API](https://the-odds-api.com) key under
-**⚙ Settings** to override the consensus total with the exact **FanDuel** or **DraftKings** number.
-The key is stored only in your browser (`localStorage`), never hardcoded or transmitted anywhere
-but the odds provider.
+| Factor | Rule | Backtest |
+| --- | --- | --- |
+| **Wind** | 0 <10 mph · 0.18/mph to 20 · **flat above 20** | 10–19 mph → **54–56% unders** ✅ |
+| **Rain** | 0.8 / 1.8 / 2.8 (light/mod/heavy) | rain → **56–62% unders** ✅ |
+| **Snow** | **0 — neutral** | snowy totals trend **over**, so no penalty |
+| **Cold** | 0.3 / 0.6 / 1.0 (wind-chill feels-like) | ~coin flip → trimmed |
+| **Heat** | 0.5 / 1.0 (>85 / >92 °F) | small |
 
-> Inside sandboxed previews (like the Claude Artifact) external calls are blocked, so the app falls
-> back to a clearly-labeled **sample slate**. Deploy it to your own site (e.g. GitHub Pages) and it
-> runs on live data automatically — same code, no config.
+Penalty ≥ 1.5 → **UNDER** lean; ≥ 2.5 → strong. Weather is read at the **kickoff hour** — a backtest
+showed that beats averaging over the game window (61.6% vs 59.2% on flagged unders).
 
-## The model
+### What we tested and rejected (so the model stays honest)
 
-For every game:
+Rigorous backtests killed every non-weather add-on: **book-vs-sharp inflation** (~44–48%),
+**crowd/primetime/situational** (~50%, some backwards), **team pace** (priced in), and
+**crosswind direction** (dissolved with correct OSM field geometry + full sample). The market
+prices everything it can model; it's slow only on weather.
 
-```
-Adjusted Total = Market Total − Weather Penalty
-```
+## Live games — real time
 
-The weather penalty is the sum of four transparent components (indoor / roof-closed venues = 0):
+Toggle **🔴 Live** and the board updates itself:
 
-| Factor | Rule |
-| --- | --- |
-| **Wind** | 0 below 10 mph · 0.18 pt/mph from 10–20 · +0.32 pt/mph above 20 |
-| **Precip** | rain 0.6 / 1.6 / 2.6 · snow 1.4 / 2.4 / 3.6 (light / moderate / heavy) |
-| **Cold** | 0.6 (20–31°F) · 1.1 (10–19°F) · 1.7 (<10°F) |
-| **Heat** | 0.5 (85–92°F) · 1.0 (>92°F) |
+- **Scores** refresh every **~30 s** while any game is in progress (60 s otherwise), from ESPN.
+- **Lines** refresh from your book (throttled to ~90 s to save odds-API credits) when a key is set;
+  otherwise from ESPN's consensus total.
+- **Total-over-time** sparkline builds a live trend as the number moves.
+- **Scoring-pace** projection shows whether a game is trending under in real time.
+- A freshness indicator shows how many seconds ago it last updated.
 
-A penalty ≥ 1.5 pts triggers an **UNDER** lean. Every number is shown in each game's "Why" panel.
-`computeEdge()` is a pure function — the same math runs on live and sample data.
+## Leagues
 
-## Leagues: NFL & College
+**🏈 NFL / 🎓 College** toggle. College adds a conference cycler defaulting to the **AP Top 25**
+(SEC, Big Ten, Big 12, ACC + Group of Five). College venue weather is geocoded per stadium.
 
-Toggle between **🏈 NFL** and **🎓 College** in the header. College adds a scrollable **conference
-cycler** (‹ › arrows or tap) that **defaults to the AP Top 25** and includes the SEC, Big Ten, Big 12,
-ACC, and the Group of Five. Ranked teams show their AP number on the card.
+## Data (free, keyless for the basics)
 
-College schedules, venues, indoor flags, scores and totals come from ESPN's college-football
-scoreboard. Since colleges have no fixed coordinate map, each venue's city is geocoded once (via
-Open-Meteo's keyless geocoder, cached in the browser) to fetch stadium-area weather — so the weather
-model runs identically for both leagues.
+- **Schedule, venues, scores, totals** — ESPN public scoreboards.
+- **Weather** — Open-Meteo, per venue at kickoff.
+- **Optional exact book lines + live in-play totals** — add a [The Odds API](https://the-odds-api.com)
+  key under ⚙ Settings (stored only in your browser).
 
-## Features
+## Backtest tools (`tools/`)
 
-- **Games tab** — slate sorted by weather impact, market vs. adjusted total, expandable breakdown.
-- **Pre-game / Live** toggle — Live mode adds in-game score and a scoring-**pace** projection so you
-  can watch a low-scoring weather game trend under in real time.
-- **Locks & Parlays** — highest-conviction unders, plus 2- and 3-leg model parlays.
-- **How It Works** — full methodology and data-source notes.
-- **Settings** — optional odds-API key + preferred book.
-
-## Deploy
-
-Any static host works. For GitHub Pages: push, then enable Pages on the branch — the browser makes
-the ESPN / Open-Meteo calls directly (both send permissive CORS headers).
+`backtest.mjs` (wind/cold), `backtest-precip.mjs` (+ precip), `backtest-situational.mjs`,
+`backtest-pace.mjs`, `backtest-market.mjs`, `backtest-crosswind.mjs`, `backtest-gamewindow.mjs`.
+Most run free on nflverse; weather/odds ones run in GitHub Actions. All reproducible.
 
 ## Disclaimer
 
