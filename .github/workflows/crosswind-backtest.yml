@@ -1,0 +1,33 @@
+name: Crosswind Backtest
+
+# Exploratory: does wind DIRECTION (crosswind vs along-field) add signal beyond
+# wind speed? Runs on GitHub's servers (Open-Meteo archive reachable there).
+# No API key. Field azimuths are approximate — treat results as a hypothesis.
+
+on:
+  workflow_dispatch:
+    inputs:
+      seasons:
+        description: "Season range (e.g. 2016-2024)"
+        default: "2016-2024"
+        required: true
+      windy:
+        description: "Min sustained mph to count as windy"
+        default: "10"
+        required: true
+
+jobs:
+  crosswind:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - name: Run crosswind backtest
+        env:
+          SEASONS: ${{ inputs.seasons }}
+          WINDY: ${{ inputs.windy }}
+        run: |
+          node tools/backtest-crosswind.mjs "$SEASONS" "$WINDY" | tee /tmp/out.txt
+          { echo '### Crosswind backtest — '"$SEASONS"' (wind ≥ '"$WINDY"')'; echo '```'; cat /tmp/out.txt; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
