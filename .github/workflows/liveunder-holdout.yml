@@ -1,0 +1,32 @@
+name: Live-Under Holdout
+
+# Out-of-sample check: pick the YPP under rules on TRAIN seasons, test blind on
+# TEST seasons. nflverse pbp, no key.
+
+on:
+  workflow_dispatch:
+    inputs:
+      train:
+        description: "Train season range"
+        default: "2019-2022"
+        required: true
+      test:
+        description: "Test season range (blind)"
+        default: "2023-2024"
+        required: true
+
+jobs:
+  holdout:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - name: Run live-under holdout
+        env:
+          TRAIN: ${{ inputs.train }}
+          TEST: ${{ inputs.test }}
+        run: |
+          node tools/backtest-liveunder-holdout.mjs | tee /tmp/out.txt
+          { echo '### Live-under holdout — train '"$TRAIN"' / test '"$TEST"; echo '```'; cat /tmp/out.txt; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
