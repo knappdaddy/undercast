@@ -1,0 +1,29 @@
+name: Odds Diagnostic
+
+# Pulls the two live feeds the app uses (ESPN scoreboard + The Odds API) and
+# prints them side by side to explain why displayed totals differ from a book.
+# Needs the repo secret ODDS_API_KEY. Uses 1 odds credit per run.
+
+on:
+  workflow_dispatch:
+    inputs:
+      sport:
+        description: "americanfootball_nfl or americanfootball_ncaaf"
+        default: "americanfootball_nfl"
+        required: true
+
+jobs:
+  diag:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - name: Run odds diagnostic
+        env:
+          ODDS_API_KEY: ${{ secrets.ODDS_API_KEY }}
+          SPORT: ${{ inputs.sport }}
+        run: |
+          node tools/odds-diagnostic.mjs | tee /tmp/out.txt
+          { echo '### Odds diagnostic'; echo '```'; cat /tmp/out.txt; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
