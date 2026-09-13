@@ -57,14 +57,6 @@ header{position:sticky;top:0;z-index:50;background:rgba(10,14,23,.9);
 @keyframes blink{50%{opacity:.3}}
 .dstat b{color:var(--mid)}
 
-/* ---- mode toggle ---- */
-.modebar{display:flex;gap:.4rem;margin-top:.6rem}
-.modebar button{flex:1;background:var(--panel2);border:1px solid var(--line);color:var(--mid);
-  padding:.5rem;border-radius:10px;font-size:.8rem;font-weight:600;display:flex;align-items:center;
-  justify-content:center;gap:.35rem;transition:.15s}
-.modebar button.on{background:var(--acc);border-color:var(--acc);color:#fff;box-shadow:0 3px 12px rgba(61,125,255,.35)}
-.modebar button .dot{width:6px;height:6px;border-radius:50%;background:#f2683c;
-  box-shadow:0 0 0 0 rgba(242,104,60,.6);animation:pulse 1.6s infinite}
 @keyframes pulse{0%{box-shadow:0 0 0 0 rgba(242,104,60,.6)}70%{box-shadow:0 0 0 7px rgba(242,104,60,0)}100%{box-shadow:0 0 0 0 rgba(242,104,60,0)}}
 .leaguebar{display:flex;gap:.4rem;margin-top:.6rem}
 .leaguebar button{flex:1;background:var(--panel2);border:1px solid var(--line);color:var(--mid);padding:.5rem;
@@ -160,6 +152,21 @@ main{padding:.4rem 1rem 3rem}
 .pace .tag2.u{background:var(--under-d);color:var(--under)}
 .pace .tag2.o{background:#2a1512;color:var(--hot)}
 .pace .lclock{color:var(--hot);font-weight:600}
+/* settled-game result strip */
+.result{margin:0 .9rem;background:var(--panel2);border:1px solid var(--line);border-radius:9px;
+  padding:.5rem .65rem;display:flex;align-items:center;gap:.55rem;font-size:.72rem;flex-wrap:wrap}
+.result .pl{color:var(--dim)}
+.result .pv{font-family:"Barlow Condensed";font-size:1.2rem;font-weight:700;color:var(--txt)}
+.result .rtot{color:var(--mid);margin-left:.15rem}
+.result .rtot b{color:var(--txt);font-family:"Barlow Condensed";font-size:1.05rem}
+.result .oc{margin-left:auto;font-size:.66rem;font-weight:800;letter-spacing:.03em;padding:.18rem .5rem;border-radius:6px}
+.result .oc.under{background:var(--under-d);color:var(--under)}
+.result .oc.over{background:#2a1512;color:var(--hot)}
+.result .oc.push{background:var(--line);color:var(--mid)}
+.result .hit{font-size:.58rem;font-weight:700;text-transform:uppercase;letter-spacing:.05em;
+  padding:.14rem .4rem;border-radius:5px;width:100%;text-align:center;margin-top:.1rem}
+.result .hit.good{background:var(--under-d);color:var(--under)}
+.result .hit.bad{background:#2a1512;color:var(--hot)}
 /* live total-over-time trend */
 .ttrend{margin:.5rem .9rem 0;display:flex;align-items:center;gap:.5rem;font-size:.72rem;color:var(--dim)}
 .ttrend .tl{text-transform:uppercase;letter-spacing:.06em;font-size:.58rem}
@@ -322,10 +329,6 @@ main{padding:.4rem 1rem 3rem}
     <div class="leaguebar">
       <button id="lNFL" class="on" onclick="setLeague('nfl')">🏈 NFL</button>
       <button id="lCFB" onclick="setLeague('cfb')">🎓 College</button>
-    </div>
-    <div class="modebar">
-      <button id="mPre" class="on" onclick="setMode('pre')">📅 Pre-Game</button>
-      <button id="mLive" onclick="setMode('live')"><span class="dot"></span> Live</button>
     </div>
   </header>
 
@@ -579,7 +582,17 @@ function computeEdge(game){
   const adjusted = hasLine ? +(market - penalty).toFixed(1) : null;
   const lean = (hasLine && penalty >= 1.5) ? 'under' : 'none';
   const conviction = Math.round(50 + Math.min(penalty, 6) / 6 * 42);
-  return {indoor, comps, penalty, market, adjusted, hasLine, lean, conviction, feelsF, chillApplied};
+  // Settled game: grade the final combined score against the closing total.
+  const L = game.live || {};
+  const isFinal = L.state === 'post';
+  let result = null;
+  if(isFinal){
+    const pts = (+L.homeScore||0) + (+L.awayScore||0);
+    const gradeLine = game.espnTotal!=null ? +game.espnTotal : market;   // ESPN close, else book line
+    result = { pts, line: gradeLine!=null ? +gradeLine : null,
+      outcome: gradeLine==null ? null : pts>gradeLine ? 'over' : pts<gradeLine ? 'under' : 'push' };
+  }
+  return {indoor, comps, penalty, market, adjusted, hasLine, lean, conviction, feelsF, chillApplied, isFinal, result};
 }
 
 /* ---------- VENUES: home-team abbr → stadium ---------- */
@@ -682,7 +695,7 @@ function buildGamesFromESPN(d){
       id: ev.id, kickISO: ev.date, kick: fmtKick(ev.date), kickSort: new Date(ev.date).getTime(),
       away: away.team.displayName, home: home.team.displayName, awayAb, homeAb,
       venue: v.name, city: v.city, roof: v.roof, lat: v.lat, lon: v.lon,
-      marketTotal: total, liveTotal: total,
+      marketTotal: total, liveTotal: total, espnTotal: total,   // espnTotal = closing line for grading finals
       book: odds && odds.provider ? odds.provider.name : 'Consensus',
       weather: null,
       live: { state: st, period: c.status.period, clock: c.status.displayClock,
@@ -793,7 +806,7 @@ function buildGamesFromCFB(d){
       homeAb: home.team.abbreviation || home.team.shortDisplayName,
       awayRank: rankOf(away), homeRank: rankOf(home),
       venue: venue.fullName || '', city, roof, lat:null, lon:null,
-      marketTotal: total, liveTotal: total,
+      marketTotal: total, liveTotal: total, espnTotal: total,
       book: odds && odds.provider ? odds.provider.name : 'Consensus', weather:null,
       live: { state:st, period:c.status.period, clock:c.status.displayClock, homeScore:home.score, awayScore:away.score }
     };
@@ -837,7 +850,7 @@ function sampleCFB(){
   const w=(tempF,windMph,gust,precipType,precipIntensity,precipProb,humidity,sky)=>({tempF,windMph,gust,precipType,precipIntensity,precipProb,humidity,sky});
   const g=(aR,away,aAb,hR,home,hAb,venue,city,roof,kick,mkt,live,weather)=>
     ({id:aAb+hAb,league:'cfb',away,home,awayAb:aAb,homeAb:hAb,awayRank:aR,homeRank:hR,venue,city,roof,kick,kickSort:0,
-      marketTotal:mkt,liveTotal:live,book:'Consensus',weather,live:{state:'pre'}});
+      marketTotal:mkt,liveTotal:live,espnTotal:mkt,book:'Consensus',weather,live:{state:'pre'}});
   return [
     g(6,'Michigan','MICH',null,'Washington','WASH','Husky Stadium','Seattle, WA','open','Sat 3:30 PM ET',48.5,45.5, w(58,17,24,'rain','moderate',80,84,'Steady Seattle rain, breezy')),
     g(7,'Oregon','ORE',10,'Penn State','PSU','Beaver Stadium','University Park, PA','open','Sat 7:30 PM ET',52.5,50.5, w(49,20,28,'rain','light',55,72,'White Out night, gusty & cool')),
@@ -864,7 +877,7 @@ function sampleGames(){
     ({tempF,windMph,gust,precipType,precipIntensity,precipProb,humidity,sky});
   const g=(away,home,awayAb,homeAb,venue,city,roof,kick,kickSort,mkt,live,weather)=>
     ({id:awayAb+homeAb,away,home,awayAb,homeAb,venue,city,roof,kick,kickSort,
-      marketTotal:mkt,liveTotal:live,book:'Consensus',weather,live:{state:'pre'}});
+      marketTotal:mkt,liveTotal:live,espnTotal:mkt,book:'Consensus',weather,live:{state:'pre'}});
   return [
     g('Jets','Bills','NYJ','BUF','Highmark Stadium','Orchard Park, NY','open','Sun 1:00 PM ET',1,45.5,41.5, w(58,24,33,'rain','light',55,78,'Windy, showers off Lake Erie')),
     g('Bengals','Browns','CIN','CLE','Huntington Bank Field','Cleveland, OH','open','Sun 1:00 PM ET',1,46.5,44.5, w(61,19,26,'none','none',15,64,'Breezy lakefront, clouds')),
@@ -882,7 +895,7 @@ function sampleGames(){
 
 /* ---------- STATE ---------- */
 const STATE = { games:[], live:false, loading:true, err:null, week:null, season:null };
-let MODE='pre', TAB='games', LEAGUE='nfl', CONF='top25';
+let MODE='live', TAB='games', LEAGUE='nfl', CONF='top25';   // one always-live board (no pre/live toggle)
 
 function setLoading(on){
   STATE.loading = on;
@@ -934,6 +947,7 @@ async function loadData(){
   setLoading(false);
   STATE.games.forEach(recordTotal);
   renderAll();
+  startLiveLoop();                 // board is always live — keep it refreshing
 }
 
 /* ---------- LIVE: score, total-over-time, ~1-min auto-refresh ---------- */
@@ -978,6 +992,7 @@ async function refreshLiveData(){
   const hasOdds = oddsEnabled();
   STATE.games.forEach(g=>{ const f=byId[g.id]; if(!f) return;   // scores always from ESPN; keep weather/venue
     g.live=f.live;
+    if(f.espnTotal!=null) g.espnTotal=f.espnTotal;   // keep the closing line current for grading finals
     // Only take ESPN's consensus total when there's no book feed for this game —
     // otherwise the book line (refreshed below) stays the source of truth so a
     // "DraftKings" total never gets silently replaced by ESPN's consensus number.
@@ -1045,13 +1060,6 @@ function clearSettings(){
 }
 
 /* ---------- RENDER ---------- */
-function setMode(m){
-  MODE=m;
-  document.getElementById('mPre').classList.toggle('on', m==='pre');
-  document.getElementById('mLive').classList.toggle('on', m==='live');
-  if(m==='live'){ renderAll(); startLiveLoop(); tickLive(); }   // kick an immediate update, then every 60s
-  else { stopLiveLoop(); renderAll(); }
-}
 function setLeague(l){
   if(l===LEAGUE) return;
   LEAGUE=l;
@@ -1175,6 +1183,22 @@ function paceStrip(g){
     <span class="pl">pace</span><span class="pv">${L.pace}</span>
     ${g.e.hasLine?`<span class="tag2 ${u?'u':'o'}">${u?'▼ under':'▲ over'}</span>`:''}</div>`;
 }
+// Settled game: final score + whether it hit the over or under (and whether our under lean cashed).
+function resultStrip(g){
+  const e=g.e, L=g.live; if(!e.isFinal) return '';
+  const r=e.result, oc=r.outcome;
+  const ocLabel = oc==='under'?'UNDER ✓':oc==='over'?'OVER':oc==='push'?'PUSH':'—';
+  const hit = e.lean==='under' && oc
+    ? (oc==='under'?`<span class="hit good">Under lean cashed ✓</span>`
+       : oc==='over'?`<span class="hit bad">Under lean missed ✕</span>`:'')
+    : '';
+  return `<div class="result">
+    <span class="pl">${g.awayAb}</span><span class="pv">${L.awayScore}</span>
+    <span class="pl">${g.homeAb}</span><span class="pv">${L.homeScore}</span>
+    <span class="rtot">Total <b>${r.pts}</b>${r.line!=null?` · O/U ${r.line}`:''}</span>
+    ${oc?`<span class="oc ${oc}">${ocLabel}</span>`:''}
+    ${hit}</div>`;
+}
 function gameCard(g){
   const e=g.e;
   const cls = e.lean==='under' ? (e.penalty>=2.5?'game lean strong':'game lean') : 'game';
@@ -1207,6 +1231,7 @@ function gameCard(g){
     </div>
     <div class="edgebar"><i style="width:${barPct}%"></i></div>
     ${paceStrip(g)}
+    ${resultStrip(g)}
     ${totalTrend(g)}
     <button class="why-btn" onclick="toggleWhy('${g.id}',this)">
       ${e.penalty>0?`Weather edge −${e.penalty} pts`:'No weather edge'} · Why <span class="cx">▾</span></button>
@@ -1222,7 +1247,11 @@ function renderGames(){
   if(STATE.loading){ renderSkeleton(); return; }
   const list = evaluated();
   const sort = document.getElementById('sortSel').value;
+  // Live board: in-progress games float to the top, settled games sink to the
+  // bottom; the chosen sort orders within each group.
+  const stateRank = g => g.live && g.live.state==='in' ? 0 : g.live && g.live.state==='post' ? 2 : 1;
   list.sort((a,b)=>{
+    const sr = stateRank(a)-stateRank(b); if(sr) return sr;
     if(sort==='wind') return (b.weather?.windMph||0)-(a.weather?.windMph||0);
     if(sort==='time') return a.kickSort-b.kickSort;
     return b.e.penalty-a.e.penalty;
