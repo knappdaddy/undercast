@@ -477,6 +477,40 @@ main{padding:.4rem 1rem 3rem}
           chill only sharpens the <i>cold</i> component.</p>
       </div>
 
+      <div class="method" style="border-color:#1c6b58">
+        <h4>🔴 Live trend — reading a game as it happens</h4>
+        <p>Weather is a <b>pre-game</b> edge. Once a game kicks off, UnderCast adds a second,
+          separate signal for in-progress games: is this game <b>playing</b> like an under? We
+          backtested a pile of in-game stats (2019–2024) against what the rest of the game actually
+          did, and one stood out — and it held up on <b>blind, out-of-sample</b> data.</p>
+        <p style="margin-top:.6rem">The winner is <b>combined yards per play (YPP)</b>. When both
+          offenses are grinding — short gains, stalled drives — the rest of the game tends to stay
+          low-scoring, and the live number is slow to fully reflect it.</p>
+        <table class="mtable">
+          <tr><th>Abbrev.</th><th>What it is</th><th>Why it matters</th></tr>
+          <tr><td><b>YPP</b></td><td>Yards Per Play — total yards ÷ total offensive plays, both teams combined</td>
+            <td>The cleanest tempo-of-scoring gauge. Low YPP = drives stall = punts, not points.</td></tr>
+          <tr><td><b>3rd</b></td><td>Third-down conversion — 3rd downs made ÷ attempted, both teams</td>
+            <td>Low conversion means <b>3-and-outs</b> — offenses keep giving the ball back. Confirms YPP.</td></tr>
+        </table>
+        <p style="margin-top:.6rem">The meter turns those into a live lean:</p>
+        <table class="mtable">
+          <tr><th>Combined YPP</th><th>Live lean</th></tr>
+          <tr><td><b>&lt; 5.0</b></td><td><b style="color:var(--under)">▼ UNDER</b></td></tr>
+          <tr><td><b>&lt; 4.5</b> (Q3+)</td><td><b style="color:var(--under)">▼ STRONG UNDER</b></td></tr>
+          <tr><td>&lt; 5.0 <b>and 3rd &lt; 40%</b></td><td>adds a ✓ confirmer</td></tr>
+          <tr><td><b>&gt; 6.5</b></td><td><span style="color:var(--hot)">▲ OVER</span> — shown for info only</td></tr>
+        </table>
+        <p style="margin-top:.6rem;color:var(--dim);font-size:.74rem">League-average YPP is ~5.5. The
+          meter stays quiet until <b>after Q1</b> (one bad drive isn't a trend) and gets more
+          confident as the game goes on — it's strongest by Q3. Overs were far noisier in testing, so
+          we surface them as information, never a lean.</p>
+        <p style="margin-top:.5rem;color:var(--dim);font-size:.74rem"><b>Honest limit:</b> we validated
+          this against the market's <i>implied</i> remaining points, not real live in-play lines
+          (which aren't cheaply available). So it's proven to <i>predict low scoring</i> — treat it as
+          a strong lean and a transparency tool, not a guaranteed edge over a fast live market.</p>
+      </div>
+
       <div class="method">
         <h4>📡 Where the data comes from</h4>
         <p>When deployed to a real web host, UnderCast pulls <b>live data</b> from two free,
@@ -486,6 +520,8 @@ main{padding:.4rem 1rem 3rem}
             (real games, kickoff times, indoor/outdoor flags, live scores and the current over/under).</li>
           <li><b>Weather</b> — Open-Meteo forecast keyed to each stadium's coordinates and matched
             to the kickoff hour (temperature, sustained wind, gusts, precipitation).</li>
+          <li><b>Live box score</b> — ESPN's game summary feed for in-progress games (team yards,
+            plays and third downs) powers the live YPP trend meter.</li>
         </ul>
         <p style="margin-top:.5rem">Want the <b>exact FanDuel or DraftKings</b> number instead of the
           consensus line? Add a free <a href="https://the-odds-api.com" style="color:var(--acc)">The Odds API</a>
