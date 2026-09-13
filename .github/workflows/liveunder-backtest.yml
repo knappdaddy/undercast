@@ -1,0 +1,27 @@
+name: Live-Under Backtest
+
+# Which in-game stats (end of Q1/half/Q3) predict the REST of the game beating
+# the market-implied remainder — for unders AND overs. nflverse pbp, no key.
+
+on:
+  workflow_dispatch:
+    inputs:
+      seasons:
+        description: "Season range (2016-2024). Each season pulls one pbp file."
+        default: "2019-2024"
+        required: true
+
+jobs:
+  liveunder:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - name: Run live-under backtest
+        env:
+          SEASONS: ${{ inputs.seasons }}
+        run: |
+          node tools/backtest-liveunder.mjs "$SEASONS" | tee /tmp/out.txt
+          { echo '### Live-under backtest — '"$SEASONS"; echo '```'; cat /tmp/out.txt; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
