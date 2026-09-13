@@ -578,7 +578,8 @@ function computeEdge(game){
   let result = null;
   if(isFinal){
     const pts = (+L.homeScore||0) + (+L.awayScore||0);
-    const gradeLine = game.espnTotal!=null ? +game.espnTotal : market;   // ESPN close, else book line
+    let gradeLine = game.espnTotal!=null ? +game.espnTotal : market;     // ESPN close, else book line
+    if(gradeLine==null){ const hh=getHist(game.id); if(hh && hh.length) gradeLine=+hh[0].v; }  // else the pregame line we recorded
     result = { pts, line: gradeLine!=null ? +gradeLine : null,
       outcome: gradeLine==null ? null : pts>gradeLine ? 'over' : pts<gradeLine ? 'under' : 'push' };
   }
