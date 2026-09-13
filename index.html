@@ -106,7 +106,12 @@ main{padding:.4rem 1rem 3rem}
 .g-match{display:flex;align-items:center;gap:.4rem;font-family:"Barlow Condensed";
   font-size:1.15rem;font-weight:600;line-height:1}
 .g-match .at{color:var(--dim);font-size:.85rem;font-weight:500}
+.g-match .tsc{color:var(--txt);font-size:1.4rem;font-weight:700;margin-left:.02rem}
 .g-match .sc{margin-left:auto;font-size:.85rem;color:var(--mid);font-weight:500}
+.g-match .finalchip{font-family:"Inter",sans-serif;font-size:.62rem;font-weight:700;color:var(--dim);
+  text-transform:uppercase;letter-spacing:.07em;background:var(--panel2);border:1px solid var(--line2);
+  padding:.12rem .4rem;border-radius:6px}
+.g-match .livedot{font-size:.72rem}
 .g-meta{font-size:.7rem;color:var(--dim);margin-top:.35rem;display:flex;gap:.5rem;flex-wrap:wrap;align-items:center}
 .roofpill{font-size:.58rem;padding:.08rem .38rem;border-radius:5px;background:var(--panel2);
   border:1px solid var(--line2);color:var(--mid);text-transform:uppercase;letter-spacing:.05em}
@@ -152,21 +157,6 @@ main{padding:.4rem 1rem 3rem}
 .pace .tag2.u{background:var(--under-d);color:var(--under)}
 .pace .tag2.o{background:#2a1512;color:var(--hot)}
 .pace .lclock{color:var(--hot);font-weight:600}
-/* settled-game result strip */
-.result{margin:0 .9rem;background:var(--panel2);border:1px solid var(--line);border-radius:9px;
-  padding:.5rem .65rem;display:flex;align-items:center;gap:.55rem;font-size:.72rem;flex-wrap:wrap}
-.result .pl{color:var(--dim)}
-.result .pv{font-family:"Barlow Condensed";font-size:1.2rem;font-weight:700;color:var(--txt)}
-.result .rtot{color:var(--mid);margin-left:.15rem}
-.result .rtot b{color:var(--txt);font-family:"Barlow Condensed";font-size:1.05rem}
-.result .oc{margin-left:auto;font-size:.66rem;font-weight:800;letter-spacing:.03em;padding:.18rem .5rem;border-radius:6px}
-.result .oc.under{background:var(--under-d);color:var(--under)}
-.result .oc.over{background:#2a1512;color:var(--hot)}
-.result .oc.push{background:var(--line);color:var(--mid)}
-.result .hit{font-size:.58rem;font-weight:700;text-transform:uppercase;letter-spacing:.05em;
-  padding:.14rem .4rem;border-radius:5px;width:100%;text-align:center;margin-top:.1rem}
-.result .hit.good{background:var(--under-d);color:var(--under)}
-.result .hit.bad{background:#2a1512;color:var(--hot)}
 /* live total-over-time trend */
 .ttrend{margin:.5rem .9rem 0;display:flex;align-items:center;gap:.5rem;font-size:.72rem;color:var(--dim)}
 .ttrend .tl{text-transform:uppercase;letter-spacing:.06em;font-size:.58rem}
@@ -1177,41 +1167,52 @@ function paceStrip(g){
   const L=g.live; if(MODE!=='live'||!L||L.state!=='in'||L.pace==null) return '';
   const u = g.e.hasLine && L.pace < g.e.market;
   return `<div class="pace">
-    <span class="pl">${g.awayAb}</span><span class="pv">${L.awayScore}</span>
-    <span class="pl">${g.homeAb}</span><span class="pv">${L.homeScore}</span>
-    <span class="lclock">Q${L.period} ${L.clock||''}</span>
-    <span class="pl">pace</span><span class="pv">${L.pace}</span>
-    ${g.e.hasLine?`<span class="tag2 ${u?'u':'o'}">${u?'▼ under':'▲ over'}</span>`:''}</div>`;
+    <span class="pl">Projected total at this pace</span><span class="pv">${L.pace}</span>
+    ${g.e.hasLine?`<span class="tag2 ${u?'u':'o'}">${u?'▼ trending under':'▲ trending over'}</span>`:''}</div>`;
 }
-// Settled game: final score + whether it hit the over or under (and whether our under lean cashed).
-function resultStrip(g){
-  const e=g.e, L=g.live; if(!e.isFinal) return '';
-  const r=e.result, oc=r.outcome;
-  const ocLabel = oc==='under'?'UNDER ✓':oc==='over'?'OVER':oc==='push'?'PUSH':'—';
-  const hit = e.lean==='under' && oc
-    ? (oc==='under'?`<span class="hit good">Under lean cashed ✓</span>`
-       : oc==='over'?`<span class="hit bad">Under lean missed ✕</span>`:'')
-    : '';
-  return `<div class="result">
-    <span class="pl">${g.awayAb}</span><span class="pv">${L.awayScore}</span>
-    <span class="pl">${g.homeAb}</span><span class="pv">${L.homeScore}</span>
-    <span class="rtot">Total <b>${r.pts}</b>${r.line!=null?` · O/U ${r.line}`:''}</span>
-    ${oc?`<span class="oc ${oc}">${ocLabel}</span>`:''}
-    ${hit}</div>`;
+// Scores + status live in the header next to the teams (no separate row).
+function teamHeader(g){
+  const L=g.live||{}, scored = L.state==='in' || L.state==='post';
+  const av = scored ? ` <b class="tsc">${L.awayScore}</b>` : '';
+  const hv = scored ? ` <b class="tsc">${L.homeScore}</b>` : '';
+  const chip = L.state==='in' ? `<span class="sc livedot">Q${L.period} ${L.clock||''}</span>`
+             : L.state==='post' ? `<span class="sc finalchip">Final</span>` : '';
+  return `${rk(g.awayRank)}${g.awayAb}${av} <span class="at">@</span> ${rk(g.homeRank)}${g.homeAb}${hv}${chip}`;
+}
+// Right column: model Adj/Mkt before & during a game; the over/under verdict once final.
+function edgeCol(g){
+  const e=g.e;
+  if(e.isFinal){
+    const r=e.result, oc=r?r.outcome:null;
+    const pill = oc==='under'?`<span class="leanpill u">▼ Under ✓</span>`
+      : oc==='over'?`<span class="leanpill n">▲ Over</span>`
+      : oc==='push'?`<span class="leanpill n">Push</span>`
+      : `<span class="leanpill n">No line</span>`;
+    return `<div class="g-edge">
+      <div class="lbl">Total</div>
+      <div class="totals"><span class="adj ${oc==='under'?'u':''}">${r?r.pts:'—'}</span></div>
+      ${pill}
+      ${r&&r.line!=null?`<div class="bookline">O/U ${r.line}</div>`:''}</div>`;
+  }
+  const leanPill = e.lean==='under' ? `<span class="leanpill u">▼ Under</span>`
+    : `<span class="leanpill n">${e.hasLine?'No edge':'No line'}</span>`;
+  return `<div class="g-edge">
+    <div class="lbl">Adj / Mkt</div>
+    <div class="totals">
+      ${(e.hasLine&&e.penalty>0)?`<span class="mkt">${e.market}</span>`:''}
+      <span class="adj ${e.lean==='under'?'u':''}">${e.hasLine?e.adjusted:'—'}</span>
+    </div>
+    ${leanPill}
+    ${e.hasLine?`<div class="bookline">${g.book}</div>`:''}</div>`;
 }
 function gameCard(g){
   const e=g.e;
   const cls = e.lean==='under' ? (e.penalty>=2.5?'game lean strong':'game lean') : 'game';
   const barPct = Math.min(e.penalty/5*100,100);
-  const leanPill = e.lean==='under' ? `<span class="leanpill u">▼ Under</span>`
-    : `<span class="leanpill n">${e.hasLine?'No edge':'No line'}</span>`;
-  const L=g.live, liveTag = (MODE==='live'&&L&&L.state==='in') ? `<span class="livedot">LIVE Q${L.period} ${L.clock||''}</span>`
-    : (L&&L.state==='post') ? `<span style="color:var(--dim)">Final</span>` : '';
   return `<div class="${cls}">
     <div class="g-top">
       <div class="g-main">
-        <div class="g-match">${rk(g.awayRank)}${g.awayAb} <span class="at">@</span> ${rk(g.homeRank)}${g.homeAb}
-          ${liveTag?`<span class="sc">${liveTag}</span>`:''}</div>
+        <div class="g-match">${teamHeader(g)}</div>
         <div class="g-meta">
           <span>${g.kick}</span>
           <span class="roofpill">${g.roof==='open'?'Outdoor':g.roof==='dome'?'Dome':g.roof==='fixed'?'Fixed roof':'Retractable'}</span>
@@ -1219,19 +1220,10 @@ function gameCard(g){
         </div>
         <div class="wx">${wxChips(g)}</div>
       </div>
-      <div class="g-edge">
-        <div class="lbl">Adj / Mkt</div>
-        <div class="totals">
-          ${(e.hasLine&&e.penalty>0)?`<span class="mkt">${e.market}</span>`:''}
-          <span class="adj ${e.lean==='under'?'u':''}">${e.hasLine?e.adjusted:'—'}</span>
-        </div>
-        ${leanPill}
-        ${e.hasLine?`<div class="bookline">${g.book}</div>`:''}
-      </div>
+      ${edgeCol(g)}
     </div>
     <div class="edgebar"><i style="width:${barPct}%"></i></div>
     ${paceStrip(g)}
-    ${resultStrip(g)}
     ${totalTrend(g)}
     <button class="why-btn" onclick="toggleWhy('${g.id}',this)">
       ${e.penalty>0?`Weather edge −${e.penalty} pts`:'No weather edge'} · Why <span class="cx">▾</span></button>
