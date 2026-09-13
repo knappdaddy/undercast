@@ -1,0 +1,27 @@
+name: Live-Weather Backtest
+
+# Does weather worsening in the 2nd half predict the rest of the game going
+# under? nflverse (halftime score) + Open-Meteo archive (hourly). No key.
+
+on:
+  workflow_dispatch:
+    inputs:
+      seasons:
+        description: "Season range (2016-2024)"
+        default: "2016-2024"
+        required: true
+
+jobs:
+  liveweather:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - name: Run live-weather backtest
+        env:
+          SEASONS: ${{ inputs.seasons }}
+        run: |
+          node tools/backtest-liveweather.mjs "$SEASONS" | tee /tmp/out.txt
+          { echo '### Live-weather backtest — '"$SEASONS"; echo '```'; cat /tmp/out.txt; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
