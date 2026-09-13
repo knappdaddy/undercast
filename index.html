@@ -158,13 +158,27 @@ main{padding:.4rem 1rem 3rem}
 .pace .tag2.o{background:#2a1512;color:var(--hot)}
 .pace .lclock{color:var(--hot);font-weight:600}
 /* live total-over-time trend */
-.ttrend{margin:.5rem .9rem 0;display:flex;align-items:center;gap:.5rem;font-size:.72rem;color:var(--dim)}
-.ttrend .tl{text-transform:uppercase;letter-spacing:.06em;font-size:.58rem}
-.ttrend .tvals b{color:var(--txt);font-family:"Barlow Condensed";font-size:1.05rem}
-.ttrend .ar{color:var(--dim);margin:0 .1rem}
-.ttrend .td{font-weight:700;font-family:"Barlow Condensed";font-size:.9rem}
+.ttrend{margin:.55rem .9rem 0;display:flex;align-items:center;justify-content:space-between;gap:.6rem}
+.ttrend .tt-main{display:flex;flex-direction:column;gap:.16rem;min-width:0}
+.ttrend .tl{text-transform:uppercase;letter-spacing:.07em;font-size:.55rem;color:var(--dim)}
+.ttrend .tt-nums{display:flex;align-items:baseline;gap:.3rem;font-family:"Barlow Condensed"}
+.ttrend .tt-nums .from{color:var(--dim);font-size:1rem}
+.ttrend .tt-nums .ar{color:var(--dim);font-size:.85rem}
+.ttrend .tt-nums .to{color:var(--txt);font-size:1.3rem;font-weight:700;line-height:1}
+.ttrend .tt-nums .td{font-size:.85rem;font-weight:700}
 .ttrend .td.up{color:var(--warn)}.ttrend .td.dn{color:var(--under)}
-.ttrend .spark{width:92px;height:26px;margin-left:auto;flex-shrink:0;overflow:visible}
+.ttrend .tt-time{font-size:.56rem;color:var(--dim)}
+.ttrend .spark{width:88px;height:28px;flex-shrink:0;overflow:visible}
+/* Why-panel line-move log */
+.movelog{margin-top:.25rem}
+.mvrow{display:flex;align-items:baseline;gap:.6rem;padding:.22rem 0;border-bottom:1px solid var(--line)}
+.mvrow:last-child{border-bottom:none}
+.mvrow .mvt{flex:1;min-width:0;color:var(--mid);font-size:.72rem}
+.mvrow .mvv{font-family:"Barlow Condensed";font-weight:700;color:var(--txt);font-size:1.05rem}
+.mvrow .mvd{font-family:"Barlow Condensed";font-weight:700;font-size:.85rem;width:56px;text-align:right}
+.mvrow .mvd.up{color:var(--warn)}.mvrow .mvd.dn{color:var(--under)}
+.mvrow .mvd.open{font-family:"Inter",sans-serif;font-weight:600;font-size:.56rem;color:var(--dim);
+  text-transform:uppercase;letter-spacing:.04em}
 .livepulse{display:inline-flex;align-items:center;gap:.3rem}
 .livepulse::before{content:"";width:6px;height:6px;border-radius:50%;background:var(--hot);animation:pulse 1.6s infinite}
 
@@ -965,14 +979,40 @@ function sparkline(h){
     <polyline points="${pts}" fill="none" stroke="${col}" stroke-width="1.6" stroke-linejoin="round"/>
     <circle cx="${lx.toFixed(1)}" cy="${ly.toFixed(1)}" r="2" fill="${col}"/></svg>`;
 }
+function fmtMove(ts){
+  try{ return new Date(ts).toLocaleString('en-US',
+    {weekday:'short',hour:'numeric',minute:'2-digit',timeZone:'America/New_York'}); }
+  catch(e){ return ''; }
+}
 function totalTrend(g){
   if(MODE!=='live') return '';
   const h=getHist(g.id); if(!h || h.length<2) return '';
   const open=h[0].v, now=h[h.length-1].v, d=+(now-open).toFixed(1);
-  return `<div class="ttrend"><span class="tl">Total</span>
-    <span class="tvals">${open} <span class="ar">→</span> <b>${now}</b>
-      <span class="td ${d>0?'up':d<0?'dn':''}">${d>0?'+':''}${d||'0'}</span></span>
-    ${sparkline(h)}</div>`;
+  const arrow = d>0?'▲':d<0?'▼':'';
+  return `<div class="ttrend">
+    <div class="tt-main">
+      <span class="tl">Total line</span>
+      <span class="tt-nums"><span class="from">${open}</span><span class="ar">→</span><b class="to">${now}</b>${d?`<span class="td ${d>0?'up':'dn'}">${arrow} ${d>0?'+':''}${d}</span>`:''}</span>
+      <span class="tt-time">last move ${fmtMove(h[h.length-1].t)} ET</span>
+    </div>
+    ${sparkline(h)}
+  </div>`;
+}
+// Timestamped log of every line move we recorded, newest first (for the Why panel).
+function moveLog(g){
+  const h=getHist(g.id); if(!h || h.length<2) return '';
+  const rows=[];
+  for(let i=h.length-1; i>=1 && rows.length<7; i--){
+    const d=+(h[i].v-h[i-1].v).toFixed(1);
+    rows.push(`<div class="mvrow"><span class="mvt">${fmtMove(h[i].t)} ET</span>
+      <span class="mvv">${h[i].v}</span>
+      <span class="mvd ${d>0?'up':d<0?'dn':''}">${d>0?'▲ +'+d:d<0?'▼ '+d:'—'}</span></div>`);
+  }
+  rows.push(`<div class="mvrow"><span class="mvt">${fmtMove(h[0].t)} ET</span>
+    <span class="mvv">${h[0].v}</span><span class="mvd open">first seen</span></div>`);
+  return `<h5>Line moves</h5>
+    <div class="movelog">${rows.join('')}</div>
+    <div class="forecast">Recorded on this device while the app was open — not the full market history.</div>`;
 }
 
 async function refreshLiveData(){
@@ -1135,6 +1175,7 @@ function bookLadder(g){
 function whyHTML(g){
   const e=g.e, w=g.weather||{};
   const ladder = bookLadder(g);
+  const moves = moveLog(g);
   if(e.indoor || w.indoorNeutral){
     return `<div class="why" id="why-${g.id}"><h5>Why — weather breakdown</h5>
       <div class="comp"><span class="ci">🏟️</span><span class="cn">
@@ -1142,13 +1183,15 @@ function whyHTML(g){
       Weather is sealed out, so the model applies <b>no adjustment</b>.</span><span class="cv zero">0</span></div>
       <div class="wsum"><span>Adjusted total</span>
       <b>${e.hasLine?e.adjusted:'—'} <span style="color:var(--dim);font-size:.8rem">(no edge)</span></b></div>
-      ${ladder}</div>`;
+      ${ladder}
+      ${moves}</div>`;
   }
   if(w.unknown){
     return `<div class="why" id="why-${g.id}"><h5>Why</h5>
       <div class="comp"><span class="ci">🌫️</span><span class="cn">Forecast wasn't available for this venue
       at kickoff, so no weather adjustment was applied.</span><span class="cv zero">0</span></div>
-      ${ladder}</div>`;
+      ${ladder}
+      ${moves}</div>`;
   }
   return `<div class="why" id="why-${g.id}"><h5>Why — weather breakdown</h5>
     ${compRow('🌬️','Wind',`${w.windMph} mph sustained`,e.comps.wind)}
@@ -1162,7 +1205,8 @@ function whyHTML(g){
       <span>Market <b style="color:var(--dim)">${e.hasLine?e.market:'—'}</b> − Penalty <b style="color:var(--under)">${e.penalty}</b></span>
       <b class="cond">= ${e.hasLine?e.adjusted:'—'}</b></div>
     <div class="forecast">📡 ${w.sky} · ${w.precipProb}% precip · ${w.humidity}% humidity</div>
-    ${ladder}</div>`;
+    ${ladder}
+    ${moves}</div>`;
 }
 function paceStrip(g){
   const L=g.live; if(MODE!=='live'||!L||L.state!=='in'||L.pace==null) return '';
