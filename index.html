@@ -966,10 +966,16 @@ async function refreshLiveData(){
   const d = await fetchJSON(url, 9000);
   const fresh = LEAGUE==='cfb' ? buildGamesFromCFB(d) : buildGamesFromESPN(d);
   const byId={}; fresh.forEach(f=>byId[f.id]=f);
-  STATE.games.forEach(g=>{ const f=byId[g.id]; if(!f) return;   // patch scores + totals, keep weather/venue
-    g.live=f.live; g.marketTotal=f.marketTotal; g.liveTotal=f.liveTotal; });
+  const hasOdds = oddsEnabled();
+  STATE.games.forEach(g=>{ const f=byId[g.id]; if(!f) return;   // scores always from ESPN; keep weather/venue
+    g.live=f.live;
+    // Only take ESPN's consensus total when there's no book feed for this game —
+    // otherwise the book line (refreshed below) stays the source of truth so a
+    // "DraftKings" total never gets silently replaced by ESPN's consensus number.
+    if(!hasOdds || !g.books){ g.marketTotal=f.marketTotal; g.liveTotal=f.liveTotal; }
+  });
   // live book line: refresh at most every ~90s to conserve odds-API credits (scores come free from ESPN each tick)
-  try{ if(oddsEnabled() && Date.now()-LAST_ODDS>85000){ await applyOddsAPI(STATE.games); LAST_ODDS=Date.now(); } }catch(e){}
+  try{ if(hasOdds && Date.now()-LAST_ODDS>85000){ await applyOddsAPI(STATE.games); LAST_ODDS=Date.now(); } }catch(e){}
   STATE.games.forEach(recordTotal);
 }
 // sample-mode demo: make a couple of games "live" and nudge score/total so the feature is visible
