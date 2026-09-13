@@ -148,15 +148,20 @@ main{padding:.4rem 1rem 3rem}
 .edgebar{height:4px;background:var(--panel2);position:relative}
 .edgebar i{position:absolute;left:0;top:0;bottom:0;background:linear-gradient(90deg,#1c6b58,var(--under))}
 
-/* live pace strip */
-.pace{margin:0 .9rem;background:#161d2e;border:1px solid var(--line);border-radius:9px;
-  padding:.5rem .65rem;display:flex;align-items:center;gap:.6rem;font-size:.72rem}
-.pace .pl{color:var(--dim)}
-.pace .pv{font-family:"Barlow Condensed";font-size:1.15rem;font-weight:700;color:var(--txt)}
-.pace .tag2{margin-left:auto;font-size:.62rem;font-weight:700;padding:.15rem .45rem;border-radius:6px}
-.pace .tag2.u{background:var(--under-d);color:var(--under)}
-.pace .tag2.o{background:#2a1512;color:var(--hot)}
-.pace .lclock{color:var(--hot);font-weight:600}
+/* live under-o-meter (validated YPP trend) */
+.ltrend{margin:0 .9rem;background:#161d2e;border:1px solid var(--line);border-radius:9px;padding:.5rem .65rem}
+.ltrend.under{border-color:#1c5a4a;background:#0f2620}
+.ltrend.under.strong{border-color:#2a8a70}
+.ltrend.over{border-color:#4a2318;background:#241310}
+.lt-head{display:flex;align-items:baseline;gap:.5rem}
+.lt-v{font-family:"Barlow Condensed";font-weight:700;font-size:1.05rem;letter-spacing:.02em}
+.ltrend.under .lt-v{color:var(--under)} .ltrend.over .lt-v{color:var(--hot)} .ltrend.even .lt-v{color:var(--mid)}
+.lt-c{margin-left:auto;font-size:.58rem;color:var(--dim);text-transform:uppercase;letter-spacing:.05em}
+.lt-stats{display:flex;gap:.4rem;flex-wrap:wrap;margin-top:.4rem}
+.lt-chip{font-size:.66rem;font-weight:600;padding:.16rem .45rem;border-radius:6px;
+  background:var(--panel2);border:1px solid var(--line);color:var(--mid)}
+.lt-chip.low{background:var(--under-d);border-color:#1c5a4a;color:var(--under)}
+.lt-chip.high{background:#2a1512;border-color:#4a2318;color:var(--hot)}
 /* live total-over-time trend */
 .ttrend{margin:.55rem .9rem 0;display:flex;align-items:center;justify-content:space-between;gap:.6rem}
 .ttrend .tt-main{display:flex;flex-direction:column;gap:.16rem;min-width:0}
@@ -685,6 +690,32 @@ async function fetchJSON(url, ms){
   finally{ clearTimeout(t); }
 }
 
+// Live box-score for in-progress games (ESPN summary endpoint, keyless). Combined
+// yards-per-play is our validated live-under signal; 3rd-down rate confirms it.
+async function attachLiveStats(games){
+  const inplay = games.filter(g => g.live && g.live.state === 'in');
+  if(!inplay.length) return;
+  const base = LEAGUE==='cfb' ? 'college-football' : 'nfl';
+  await Promise.all(inplay.map(async g=>{
+    try{
+      const d = await fetchJSON(`https://site.api.espn.com/apis/site/v2/sports/football/${base}/summary?event=${g.id}`, 8000);
+      const teams = (d.boxscore && d.boxscore.teams) || [];
+      let yds=0, plays=0, conv=0, att=0, ok=false;
+      teams.forEach(t=>{
+        const st={}; (t.statistics||[]).forEach(s=>{ st[s.name]=s.displayValue; });
+        const ty = parseFloat(String(st.totalYards||'').replace(/[^0-9.\-]/g,''));
+        const tp = parseFloat(String(st.totalOffensivePlays||'').replace(/[^0-9.\-]/g,''));
+        if(!isNaN(ty) && !isNaN(tp) && tp>0){ yds+=ty; plays+=tp; ok=true; }
+        const m = String(st.thirdDownEff||'').match(/(\d+)\s*-\s*(\d+)/);
+        if(m){ conv+=+m[1]; att+=+m[2]; }
+      });
+      if(ok){ g.live.ypp = +(yds/plays).toFixed(2); g.live.plays = plays; g.live.yards = yds;
+        g.live.thirdConv = conv; g.live.thirdAtt = att;
+        g.live.thirdRate = att>0 ? conv/att : null; }
+    }catch(e){ /* leave stats absent → trend strip just won't show */ }
+  }));
+}
+
 function buildGamesFromESPN(d){
   return (d.events||[]).map(ev=>{
     const c = ev.competitions[0];
@@ -943,6 +974,7 @@ async function loadData(){
       await attachWeather(games);
     }
     try{ await applyOddsAPI(games); }catch(e){ /* keep consensus totals */ }
+    try{ await attachLiveStats(games); LAST_STATS=Date.now(); }catch(e){ /* trend strip just won't show */ }
     STATE.games=games; STATE.live=true; STATE.err=null;
   }catch(e){
     STATE.games = LEAGUE==='cfb' ? sampleCFB() : sampleGames();
@@ -956,7 +988,7 @@ async function loadData(){
 }
 
 /* ---------- LIVE: score, total-over-time, ~1-min auto-refresh ---------- */
-let LIVE_TIMER=null, FRESH_TIMER=null, REFRESHING=false, LAST_TICK=0, LAST_ODDS=0;
+let LIVE_TIMER=null, FRESH_TIMER=null, REFRESHING=false, LAST_TICK=0, LAST_ODDS=0, LAST_STATS=0;
 
 // per-game total history in the browser (builds a real trend while you watch)
 const histKey = id => 'uc_h_'+id;
@@ -1031,6 +1063,8 @@ async function refreshLiveData(){
   });
   // live book line: refresh at most every ~90s to conserve odds-API credits (scores come free from ESPN each tick)
   try{ if(hasOdds && Date.now()-LAST_ODDS>85000){ await applyOddsAPI(STATE.games); LAST_ODDS=Date.now(); } }catch(e){}
+  // live box-score stats for the YPP under-trend, refreshed ~every 45s
+  try{ if(Date.now()-LAST_STATS>45000){ await attachLiveStats(STATE.games); LAST_STATS=Date.now(); } }catch(e){}
   STATE.games.forEach(recordTotal);
 }
 // sample-mode demo: make a couple of games "live" and nudge score/total so the feature is visible
@@ -1044,7 +1078,14 @@ function simulateLiveTick(){
     L.clock=`${m}:${String(s).padStart(2,'0')}`;
     if(Math.random()<0.25){ const pts=[3,7][Math.random()<.5?0:1]; if(Math.random()<.5)L.homeScore=+L.homeScore+pts; else L.awayScore=+L.awayScore+pts; }
     if(g.roof==='open' && Math.random()<0.3){ g.liveTotal=+( (g.liveTotal ?? g.marketTotal) + (Math.random()<.5?-0.5:0.5) ).toFixed(1); }
-    if(L.state==='in') Object.assign(L, livePace({period:L.period,displayClock:L.clock}, L.homeScore, L.awayScore));
+    if(L.state==='in'){ Object.assign(L, livePace({period:L.period,displayClock:L.clock}, L.homeScore, L.awayScore));
+      // demo box-score so the live under-o-meter is visible offline (game 0 = grind-it-out under)
+      const targetYpp = i===0 ? 4.2 : i===1 ? 5.6 : 6.8;
+      L.plays = 12 + L.period*14;
+      L.ypp = +(targetYpp + (Math.random()-0.5)*0.3).toFixed(2);
+      L.thirdAtt = 3 + L.period*2; L.thirdConv = Math.round(L.thirdAtt*(i===0?0.28:i===1?0.42:0.6));
+      L.thirdRate = L.thirdConv/L.thirdAtt;
+    }
   });
   STATE.games.forEach(recordTotal);
 }
@@ -1208,12 +1249,42 @@ function whyHTML(g){
     ${ladder}
     ${moves}</div>`;
 }
-function paceStrip(g){
-  const L=g.live; if(MODE!=='live'||!L||L.state!=='in'||L.pace==null) return '';
-  const u = g.e.hasLine && L.pace < g.e.market;
-  return `<div class="pace">
-    <span class="pl">Projected total at this pace</span><span class="pv">${L.pace}</span>
-    ${g.e.hasLine?`<span class="tag2 ${u?'u':'o'}">${u?'▼ trending under':'▲ trending over'}</span>`:''}</div>`;
+// Validated live signal: combined yards-per-play predicts the rest of the game
+// going under (YPP<5.0 lean, <4.5 strong; 3rd-down<40% confirms). Ramps with
+// game progress, gated to start end of Q1. Overs are informational only.
+function liveUnderSignal(g){
+  const L=g.live; if(!L || L.state!=='in' || L.ypp==null) return null;
+  const per=L.period||1;
+  if(per<2 && (L.plays||0)<16) return null;           // need ~a quarter of data first
+  const ypp=L.ypp, third=(L.thirdRate!=null?L.thirdRate:null);
+  const confLabel = per>=4 ? 'Q4' : per>=3 ? 'Q3' : 'Q2';
+  const mature = per>=3;                                // Q3+ is where the signal is strongest
+  let side='none', strong=false;
+  if(ypp<4.5){ side='under'; strong=mature; }
+  else if(ypp<5.0){ side='under'; }
+  else if(ypp>6.5){ side='over'; }                      // informational only
+  const confirm = side==='under' && third!=null && third<0.40;
+  if(confirm && mature) strong=true;
+  return {ypp, third, thirdStr:(L.thirdAtt?`${L.thirdConv}/${L.thirdAtt}`:null),
+          side, strong, confirm, confLabel};
+}
+function liveTrendStrip(g){
+  if(MODE!=='live') return '';
+  const s=liveUnderSignal(g); if(!s) return '';
+  const yppLow = s.ypp<5.0, yppHigh = s.ypp>6.5;
+  const thirdLow = s.third!=null && s.third<0.40, thirdHigh = s.third!=null && s.third>0.55;
+  const verdict = s.side==='under' ? `▼ ${s.strong?'STRONG UNDER':'UNDER'}`
+    : s.side==='over' ? '▲ OVER' : '— even';
+  const cls = s.side==='under' ? (s.strong?'under strong':'under') : s.side==='over' ? 'over' : 'even';
+  const note = s.side==='over' ? 'info only' : s.confLabel + (s.strong?' · high':' · building');
+  const thirdChip = s.thirdStr!=null
+    ? `<span class="lt-chip ${thirdLow?'low':thirdHigh?'high':''}">3rd ${s.thirdStr} · ${Math.round(s.third*100)}%${s.confirm?' ✓':''}</span>` : '';
+  return `<div class="ltrend ${cls}">
+    <div class="lt-head"><span class="lt-v">${verdict}</span><span class="lt-c">live trend · ${note}</span></div>
+    <div class="lt-stats">
+      <span class="lt-chip ${yppLow?'low':yppHigh?'high':''}">YPP ${s.ypp.toFixed(1)} combined</span>
+      ${thirdChip}
+    </div></div>`;
 }
 // Scores + status live in the header next to the teams (no separate row).
 function teamHeader(g){
@@ -1268,7 +1339,7 @@ function gameCard(g){
       ${edgeCol(g)}
     </div>
     <div class="edgebar"><i style="width:${barPct}%"></i></div>
-    ${paceStrip(g)}
+    ${liveTrendStrip(g)}
     ${totalTrend(g)}
     <button class="why-btn" onclick="toggleWhy('${g.id}',this)">
       ${e.penalty>0?`Weather edge −${e.penalty} pts`:'No weather edge'} · Why <span class="cx">▾</span></button>

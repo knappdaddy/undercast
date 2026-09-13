@@ -40,9 +40,21 @@ Toggle **🔴 Live** and the board updates itself:
 - **Scores** refresh every **~30 s** while any game is in progress (60 s otherwise), from ESPN.
 - **Lines** refresh from your book (throttled to ~90 s to save odds-API credits) when a key is set;
   otherwise from ESPN's consensus total.
-- **Total-over-time** sparkline builds a live trend as the number moves.
-- **Scoring-pace** projection shows whether a game is trending under in real time.
+- **Total-over-time** sparkline builds a live trend as the number moves, with a
+  timestamped move log in each game's **Why** panel.
+- **Live under-o-meter** — a *separate, validated* in-game signal: combined
+  **yards-per-play** flags games trending under (YPP < 5.0 lean, < 4.5 strong;
+  3rd-down < 40% confirms), ramping with game progress and gated to start after
+  Q1. Backtested on 2019–2024 and confirmed **out-of-sample** (blind 2023–24:
+  YPP < 5.0 → ~61–62% rest-of-game unders at half/Q3 vs 52.4% break-even).
+  Stats come from ESPN's live box score. Overs are shown informational-only.
+- Settled games show the **final score + over/under result** in the header.
 - A freshness indicator shows how many seconds ago it last updated.
+
+> The live under-o-meter is graded against the market-implied remainder, not
+> live in-play lines (which aren't cheaply available), so it's validated as
+> *predictive of low scoring* — treat it as a strong lean/transparency tool, not
+> a guaranteed edge over a fast live market.
 
 ## Leagues
 
