@@ -505,6 +505,11 @@ main{padding:.4rem 1rem 3rem}
           meter stays quiet until <b>after Q1</b> (one bad drive isn't a trend) and gets more
           confident as the game goes on — it's strongest by Q3. Overs were far noisier in testing, so
           we surface them as information, never a lean.</p>
+        <p style="margin-top:.6rem"><b>🌬️ Live weather confirmer.</b> For outdoor games we also read
+          <b>current</b> conditions. When wind is <b>≥ 15 mph</b> or rain is coming down moderate+, a
+          weather chip reinforces the under (and can drive one on its own before there's enough
+          box-score data). Backtested at ~59–60% 2nd-half unders — though it largely <i>reinforces</i>
+          the pre-game weather read rather than being fully independent of it.</p>
         <p style="margin-top:.5rem;color:var(--dim);font-size:.74rem"><b>Honest limit:</b> we validated
           this against the market's <i>implied</i> remaining points, not real live in-play lines
           (which aren't cheaply available). So it's proven to <i>predict low scoring</i> — treat it as
@@ -749,6 +754,25 @@ async function attachLiveStats(games){
         g.live.thirdConv = conv; g.live.thirdAtt = att;
         g.live.thirdRate = att>0 ? conv/att : null; }
     }catch(e){ /* leave stats absent → trend strip just won't show */ }
+  }));
+}
+
+// Live current conditions for in-progress OUTDOOR games — a validated confirmer:
+// bad weather in the 2nd half backtested ~59-60% 2H-unders (reinforces, not
+// independent of, the pregame weather read).
+async function attachLiveWeather(games){
+  const inplay = games.filter(g => g.live && g.live.state==='in' && g.roof==='open' && g.lat!=null);
+  if(!inplay.length) return;
+  await Promise.all(inplay.map(async g=>{
+    try{
+      const u = `https://api.open-meteo.com/v1/forecast?latitude=${g.lat}&longitude=${g.lon}`
+        + `&current=temperature_2m,precipitation,weather_code,wind_speed_10m`
+        + `&temperature_unit=fahrenheit&wind_speed_unit=mph`;
+      const d = await fetchJSON(u, 8000); const c = d.current||{};
+      const p = classifyPrecip(c.weather_code, c.precipitation||0);
+      g.live.wxNow = { wind: Math.round(c.wind_speed_10m), tempF: Math.round(c.temperature_2m),
+        precipType: p.type, precipIntensity: p.intensity, mm: c.precipitation||0 };
+    }catch(e){ /* no live weather → confirmer just won't show */ }
   }));
 }
 
@@ -1010,7 +1034,7 @@ async function loadData(){
       await attachWeather(games);
     }
     try{ await applyOddsAPI(games); }catch(e){ /* keep consensus totals */ }
-    try{ await attachLiveStats(games); LAST_STATS=Date.now(); }catch(e){ /* trend strip just won't show */ }
+    try{ await attachLiveStats(games); await attachLiveWeather(games); LAST_STATS=Date.now(); }catch(e){ /* trend strip just won't show */ }
     STATE.games=games; STATE.live=true; STATE.err=null;
   }catch(e){
     STATE.games = LEAGUE==='cfb' ? sampleCFB() : sampleGames();
@@ -1099,8 +1123,8 @@ async function refreshLiveData(){
   });
   // live book line: refresh at most every ~90s to conserve odds-API credits (scores come free from ESPN each tick)
   try{ if(hasOdds && Date.now()-LAST_ODDS>85000){ await applyOddsAPI(STATE.games); LAST_ODDS=Date.now(); } }catch(e){}
-  // live box-score stats for the YPP under-trend, refreshed ~every 45s
-  try{ if(Date.now()-LAST_STATS>45000){ await attachLiveStats(STATE.games); LAST_STATS=Date.now(); } }catch(e){}
+  // live box-score stats + current conditions, refreshed ~every 45s
+  try{ if(Date.now()-LAST_STATS>45000){ await attachLiveStats(STATE.games); await attachLiveWeather(STATE.games); LAST_STATS=Date.now(); } }catch(e){}
   STATE.games.forEach(recordTotal);
 }
 // sample-mode demo: make a couple of games "live" and nudge score/total so the feature is visible
@@ -1121,6 +1145,8 @@ function simulateLiveTick(){
       L.ypp = +(targetYpp + (Math.random()-0.5)*0.3).toFixed(2);
       L.thirdAtt = 3 + L.period*2; L.thirdConv = Math.round(L.thirdAtt*(i===0?0.28:i===1?0.42:0.6));
       L.thirdRate = L.thirdConv/L.thirdAtt;
+      if(g.roof==='open') L.wxNow = i===0 ? {wind:21,tempF:47,precipType:'none',precipIntensity:'none',mm:0}
+        : {wind:8,tempF:60,precipType:'none',precipIntensity:'none',mm:0};   // demo: game 0 is windy
     }
   });
   STATE.games.forEach(recordTotal);
@@ -1304,23 +1330,47 @@ function liveUnderSignal(g){
   return {ypp, third, thirdStr:(L.thirdAtt?`${L.thirdConv}/${L.thirdAtt}`:null),
           side, strong, confirm, confLabel};
 }
+// Live weather confirmer for outdoor games. Backtest: 2H wind ≥15 or intensifying
+// rain → ~59-60% 2H unders. Light rain / extreme wind did NOT add, so we gate on
+// wind ≥15 or moderate+ rain only. Reinforces the under; never flags an over.
+function liveWx(g){
+  const w = g.live && g.live.wxNow;
+  if(g.roof!=='open' || !w || w.wind==null) return null;
+  const rain = w.precipType==='rain' && (w.precipIntensity==='moderate' || w.precipIntensity==='heavy');
+  const nasty = w.wind>=15 || rain;
+  const label = w.wind>=15 ? `🌬️ ${w.wind} mph live` : rain ? `🌧️ ${w.precipIntensity} rain live` : `🌬️ ${w.wind} mph`;
+  return {wind:w.wind, rain, nasty, label};
+}
 function liveTrendStrip(g){
   if(MODE!=='live') return '';
-  const s=liveUnderSignal(g); if(!s) return '';
-  const yppLow = s.ypp<5.0, yppHigh = s.ypp>6.5;
-  const thirdLow = s.third!=null && s.third<0.40, thirdHigh = s.third!=null && s.third>0.55;
-  const verdict = s.side==='under' ? `▼ ${s.strong?'STRONG UNDER':'UNDER'}`
-    : s.side==='over' ? '▲ OVER' : '— even';
-  const cls = s.side==='under' ? (s.strong?'under strong':'under') : s.side==='over' ? 'over' : 'even';
-  const note = s.side==='over' ? 'info only' : s.confLabel + (s.strong?' · high':' · building');
-  const thirdChip = s.thirdStr!=null
-    ? `<span class="lt-chip ${thirdLow?'low':thirdHigh?'high':''}">3rd ${s.thirdStr} · ${Math.round(s.third*100)}%${s.confirm?' ✓':''}</span>` : '';
+  const s = liveUnderSignal(g);           // YPP-based (may be null)
+  const wx = liveWx(g);
+  const wxNasty = !!(wx && wx.nasty);
+  if(!s && !wxNasty) return '';
+
+  let side = s ? s.side : 'none';
+  let strong = s ? s.strong : false;
+  let weatherOnly = false;
+  if(side !== 'over' && wxNasty){          // weather confirms or, absent a YPP read, drives the under
+    if(side !== 'under'){ side='under'; weatherOnly=true; }
+  }
+  const verdict = side==='under' ? `▼ ${strong?'STRONG UNDER':'UNDER'}` : side==='over' ? '▲ OVER' : '— even';
+  const cls = side==='under' ? (strong?'under strong':'under') : side==='over' ? 'over' : 'even';
+  const note = side==='over' ? 'info only'
+    : weatherOnly ? 'live weather'
+    : (s ? s.confLabel + (strong?' · high':' · building') + (wxNasty?' · +wx':'') : 'live weather');
+
+  let chips = '';
+  if(s){ const yppLow=s.ypp<5.0, yppHigh=s.ypp>6.5;
+    chips += `<span class="lt-chip ${yppLow?'low':yppHigh?'high':''}">YPP ${s.ypp.toFixed(1)} combined</span>`;
+    if(s.thirdStr!=null){ const tl=s.third<0.40, th=s.third>0.55;
+      chips += `<span class="lt-chip ${tl?'low':th?'high':''}">3rd ${s.thirdStr} · ${Math.round(s.third*100)}%${s.confirm?' ✓':''}</span>`; }
+  }
+  if(wxNasty && side==='under') chips += `<span class="lt-chip low">${wx.label}</span>`;
+
   return `<div class="ltrend ${cls}">
     <div class="lt-head"><span class="lt-v">${verdict}</span><span class="lt-c">live trend · ${note}</span></div>
-    <div class="lt-stats">
-      <span class="lt-chip ${yppLow?'low':yppHigh?'high':''}">YPP ${s.ypp.toFixed(1)} combined</span>
-      ${thirdChip}
-    </div></div>`;
+    <div class="lt-stats">${chips}</div></div>`;
 }
 // Scores + status live in the header next to the teams (no separate row).
 function teamHeader(g){
