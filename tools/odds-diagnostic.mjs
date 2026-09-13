@@ -52,31 +52,27 @@ async function getJSON(u){ const r = await fetch(u); const rem = r.headers.get('
   console.log('OddsAPI status', real.status, '· games', (real.j||[]).length,
     '· credits remaining:', real.rem);
   if(!real.ok){ console.log('OddsAPI error body:', real.raw); }
-  const oddsMap = {};
-  (real.j||[]).forEach(g=>{
+  console.log('  (Odds API returns the whole season — that is why keying by home team alone collides.)');
+  const recs = (real.j||[]).map(g=>{
     const tot = {};
     (g.bookmakers||[]).forEach(b=>{ const m=(b.markets||[]).find(x=>x.key==='totals');
       const ov=m&&(m.outcomes||[]).find(x=>x.name==='Over'); if(ov&&ov.point!=null) tot[b.key]=+ov.point; });
-    oddsMap[normTeam(g.home_team)] = { tot, home:g.home_team, commence:g.commence_time };
-  });
+    return { home:normTeam(g.home_team), away:normTeam(g.away_team), commence:Date.parse(g.commence_time||''), tot };
+  }).filter(r=>Object.keys(r.tot).length);
 
-  // 3) Side by side
-  console.log('\n  matchup                         ESPN(OU/prov)     DK    FD   BetMGM  match?');
-  console.log('  '+'─'.repeat(84));
+  // OLD (home-only) vs NEW (home+away nearest kickoff) matching, per current-week game.
+  const homeOnly = {}; recs.forEach(r=>{ homeOnly[r.home]=r.tot; });   // last write wins = the bug
+
+  console.log('\n  matchup                       ESPN DK   OLD-map DK   FIXED DK   FIXED FD');
+  console.log('  '+'─'.repeat(74));
   for(const g of espnGames){
-    const rec = oddsMap[g.hkey];
-    const dk = rec?.tot?.draftkings ?? '—';
-    const fd = rec?.tot?.fanduel ?? '—';
-    const mg = rec?.tot?.betmgm ?? '—';
-    const matched = rec ? 'yes' : 'NO — falls back to ESPN';
-    const label = (g.away.split(' ').pop()+' @ '+g.home.split(' ').pop()).padEnd(30);
-    console.log(`  ${label} ${String(g.ou).padStart(5)}/${(g.prov).padEnd(10).slice(0,10)}  ${String(dk).padStart(5)} ${String(fd).padStart(5)}  ${String(mg).padStart(5)}   ${matched}`);
+    const kt = Date.now();  // current-week games kick within days; nearest-to-now is fine for the demo
+    const cands = recs.filter(r=>r.home===g.hkey && r.away===normTeam(g.away));
+    cands.sort((x,y)=>Math.abs(x.commence-kt)-Math.abs(y.commence-kt));
+    const fixed = cands[0]?.tot || null;
+    const oldDK = homeOnly[g.hkey]?.draftkings ?? '—';
+    const label = (g.away.split(' ').pop()+' @ '+g.home.split(' ').pop()).padEnd(28);
+    console.log(`  ${label} ${String(g.ou).padStart(5)}    ${String(oldDK).padStart(5)}      ${String(fixed?.draftkings ?? '—').padStart(5)}      ${String(fixed?.fanduel ?? '—').padStart(5)}`);
   }
-  // Any odds records with no ESPN match (reverse direction)
-  const espnKeys = new Set(espnGames.map(g=>g.hkey));
-  const orphan = Object.entries(oddsMap).filter(([k])=>!espnKeys.has(k));
-  if(orphan.length){ console.log('\n  Odds records with NO ESPN match (home name mismatch):');
-    orphan.forEach(([k,v])=>console.log('   ', v.home, '→ normalized', k, '· DK', v.tot.draftkings)); }
-  console.log('\n  If DK column ≈ your DraftKings app but the ESPN OU differs, the app is');
-  console.log('  showing ESPN consensus (odds fetch/matching failed for that row).');
+  console.log('\n  ESPN DK and FIXED DK should now agree; OLD-map DK is the wrong-week bug.');
 })();

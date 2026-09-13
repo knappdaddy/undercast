@@ -746,15 +746,24 @@ async function applyOddsAPI(games){
     ? `${ODDS_PROXY.replace(/\/$/,'')}/v4/sports/${sport}/odds/?${qs}`     // key added server-side by the Worker
     : `https://api.the-odds-api.com/v4/sports/${sport}/odds/?apiKey=${encodeURIComponent(key)}&${qs}`;
   const arr = await fetchJSON(u);
-  const map = {};
-  (arr||[]).forEach(o=>{
+  // The Odds API returns the WHOLE season, so a team is "home" many times. Key
+  // by the full matchup and pick the record nearest kickoff — keying by home
+  // alone collides and silently returns a future week's line.
+  const recs = (arr||[]).map(o=>{
     const tot = {};
     (o.bookmakers||[]).forEach(b=>{ const m=(b.markets||[]).find(x=>x.key==='totals');
       const ov=m&&(m.outcomes||[]).find(x=>x.name==='Over'); if(ov&&ov.point!=null) tot[b.key]=+ov.point; });
-    if(Object.keys(tot).length) map[normTeam(o.home_team)] = tot;
-  });
+    return { home:normTeam(o.home_team), away:normTeam(o.away_team), commence:Date.parse(o.commence_time||''), tot };
+  }).filter(r=>Object.keys(r.tot).length);
   const label = BOOK_LABELS[book] || (book==='fanduel'?'FanDuel':'DraftKings');
-  games.forEach(g=>{ const tot = map[normTeam(g.home)]; if(!tot) return;
+  games.forEach(g=>{
+    const h=normTeam(g.home), a=normTeam(g.away), kt=g.kickSort||Date.parse(g.kickISO||'')||0;
+    const cands = recs.filter(r=>r.home===h && r.away===a);
+    if(!cands.length) return;
+    if(kt) cands.sort((x,y)=>Math.abs(x.commence-kt)-Math.abs(y.commence-kt));
+    const rec = cands[0];
+    if(kt && rec.commence && Math.abs(rec.commence-kt) > 5*864e5) return;   // wrong week — keep ESPN's line
+    const tot = rec.tot;
     g.books = tot; g.bookKey = book; g.medianTotal = medianOf(Object.values(tot));
     // Anchor the model on the user's book if present, else the market median.
     const pt = tot[book]!=null ? tot[book] : g.medianTotal;
