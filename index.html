@@ -1021,7 +1021,7 @@ function setStatus(){
   const scope = LEAGUE==='cfb' ? ('College · ' + (CONFERENCES.find(c=>c.id===CONF)||{}).name) : 'NFL';
   const anyLive = STATE.games.some(g=>g.live && g.live.state==='in');
   const ago = LAST_TICK ? `updated ${Math.max(0,Math.round((Date.now()-LAST_TICK)/1000))}s ago` : 'starting…';
-  const every = anyLive ? '30s' : '60s';
+  const every = anyLive ? '20s' : '60s';
   if(STATE.live){ ds.className='dstat on';
     txt.innerHTML = MODE==='live'
       ? `<span class="livepulse"><b>${scope} LIVE</b></span> · ${ago} · every ${every}`
@@ -1139,9 +1139,9 @@ async function refreshLiveData(){
     if(!hasOdds || !g.books){ g.marketTotal=f.marketTotal; g.liveTotal=f.liveTotal; }
   });
   // live book line: refresh at most every ~90s to conserve odds-API credits (scores come free from ESPN each tick)
-  try{ if(hasOdds && Date.now()-LAST_ODDS>85000){ await applyOddsAPI(STATE.games); LAST_ODDS=Date.now(); } }catch(e){}
+  try{ if(hasOdds && Date.now()-LAST_ODDS>45000){ await applyOddsAPI(STATE.games); LAST_ODDS=Date.now(); } }catch(e){}
   // live box-score stats + current conditions, refreshed ~every 45s
-  try{ if(Date.now()-LAST_STATS>45000){ await attachLiveStats(STATE.games); await attachLiveWeather(STATE.games); LAST_STATS=Date.now(); } }catch(e){}
+  try{ if(Date.now()-LAST_STATS>30000){ await attachLiveStats(STATE.games); await attachLiveWeather(STATE.games); LAST_STATS=Date.now(); } }catch(e){}
   STATE.games.forEach(recordTotal);
 }
 // sample-mode demo: make a couple of games "live" and nudge score/total so the feature is visible
@@ -1178,8 +1178,11 @@ async function tickLive(){
 }
 function liveDelay(){                                    // adaptive: fast while games are actually in progress
   if(!STATE.live) return 9000;                          // sample demo
-  return STATE.games.some(g=>g.live && g.live.state==='in') ? 30000 : 60000;
+  return STATE.games.some(g=>g.live && g.live.state==='in') ? 20000 : 60000;
 }
+// Bypass the throttles and pull the freshest scores/lines/stats right now —
+// used when the page regains focus or is restored, so it's never stale on view.
+function forceLiveRefresh(){ if(MODE!=='live') return; LAST_ODDS=0; LAST_STATS=0; tickLive(); }
 function scheduleLive(){ if(MODE!=='live') return;
   LIVE_TIMER=setTimeout(async()=>{ if(!document.hidden) await tickLive(); scheduleLive(); }, liveDelay()); }
 function startLiveLoop(){ stopLiveLoop(); if(MODE!=='live') return;
@@ -1188,7 +1191,11 @@ function startLiveLoop(){ stopLiveLoop(); if(MODE!=='live') return;
 }
 function stopLiveLoop(){ if(LIVE_TIMER){ clearTimeout(LIVE_TIMER); LIVE_TIMER=null; }
   if(FRESH_TIMER){ clearInterval(FRESH_TIMER); FRESH_TIMER=null; } }
-document.addEventListener('visibilitychange', ()=>{ if(!document.hidden && MODE==='live') tickLive(); });
+// Re-sync whenever the page comes back into view — tab refocus, app switch, or
+// a back/forward-cache restore (mobile) that would otherwise show a stale board.
+document.addEventListener('visibilitychange', ()=>{ if(!document.hidden) forceLiveRefresh(); });
+window.addEventListener('focus', forceLiveRefresh);
+window.addEventListener('pageshow', e=>{ if(e.persisted) forceLiveRefresh(); });
 
 /* ---------- SETTINGS ---------- */
 function openSettings(){

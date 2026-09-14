@@ -37,8 +37,9 @@ prices everything it can model; it's slow only on weather.
 
 Toggle **🔴 Live** and the board updates itself:
 
-- **Scores** refresh every **~30 s** while any game is in progress (60 s otherwise), from ESPN.
-- **Lines** refresh from your book (throttled to ~90 s to save odds-API credits) when a key is set;
+- **Scores** refresh every **~20 s** while any game is in progress (60 s otherwise), from ESPN, and
+  re-sync immediately whenever the page regains focus or is restored from cache.
+- **Lines** refresh from your book (throttled to ~45 s) when a key is set;
   otherwise from ESPN's consensus total.
 - **Total-over-time** sparkline builds a live trend as the number moves, with a
   timestamped move log in each game's **Why** panel.
