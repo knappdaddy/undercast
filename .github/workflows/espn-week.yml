@@ -1,0 +1,26 @@
+name: ESPN Week Dump
+
+on:
+  workflow_dispatch:
+    inputs:
+      week:
+        description: "NFL week number"
+        default: "2"
+        required: true
+      season:
+        description: "Season year"
+        default: "2026"
+        required: true
+
+jobs:
+  dump:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - name: Dump week
+        run: |
+          node tools/espn-week.mjs "${{ inputs.week }}" "${{ inputs.season }}" | tee /tmp/out.txt
+          { echo '### ESPN week ${{ inputs.week }}'; echo '```'; cat /tmp/out.txt; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
