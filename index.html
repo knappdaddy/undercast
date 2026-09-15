@@ -681,8 +681,10 @@ function computeEdge(game){
   let result = null;
   if(isFinal){
     const pts = (+L.homeScore||0) + (+L.awayScore||0);
-    let gradeLine = game.espnTotal!=null ? +game.espnTotal : market;     // ESPN close, else book line
-    if(gradeLine==null){ const hh=getHist(game.id); if(hh && hh.length) gradeLine=+hh[0].v; }  // else the pregame line we recorded
+    // Prefer the kickoff line we snapshotted; else ESPN's closing total; else book; else recorded open.
+    let gradeLine = (CLOSELINE[game.id]!=null) ? +CLOSELINE[game.id]
+      : game.espnTotal!=null ? +game.espnTotal : market;
+    if(gradeLine==null){ const hh=getHist(game.id); if(hh && hh.length) gradeLine=+hh[0].v; }
     result = { pts, line: gradeLine!=null ? +gradeLine : null,
       outcome: gradeLine==null ? null : pts>gradeLine ? 'over' : pts<gradeLine ? 'under' : 'push' };
   }
@@ -1103,7 +1105,7 @@ async function loadData(){
     STATE.live=false; STATE.err=e.message; STATE.week=WEEK; STATE.season=2026;
   }
   setLoading(false);
-  STATE.games.forEach(recordTotal);
+  STATE.games.forEach(recordTotal); captureCloseLines(STATE.games);
   renderAll();
   startLiveLoop();                 // board is always live — keep it refreshing
 }
@@ -1115,6 +1117,19 @@ let LIVE_TIMER=null, FRESH_TIMER=null, REFRESHING=false, LAST_TICK=0, LAST_ODDS=
 // against the final over/under result (our track record). Persists in the browser.
 let SIGLOG = {}; try{ SIGLOG = JSON.parse(localStorage.getItem('uc_siglog')||'{}'); }catch(e){ SIGLOG = {}; }
 function saveSiglog(){ try{ localStorage.setItem('uc_siglog', JSON.stringify(SIGLOG)); }catch(e){} }
+
+// Closing line: the total as it stood at kickoff. We snapshot it while a game
+// is still pre-game (refreshed until kickoff, then frozen), so a settled game
+// is shown/graded against the number you actually bet — never a live-drifted one.
+let CLOSELINE = {}; try{ CLOSELINE = JSON.parse(localStorage.getItem('uc_close')||'{}'); }catch(e){ CLOSELINE = {}; }
+function captureCloseLines(games){
+  let changed=false;
+  games.forEach(g=>{ if(g.live && g.live.state==='pre'){
+    const t = g.marketTotal!=null ? g.marketTotal : g.espnTotal;
+    if(t!=null && CLOSELINE[g.id]!==t){ CLOSELINE[g.id]=t; changed=true; }
+  }});
+  if(changed){ try{ localStorage.setItem('uc_close', JSON.stringify(CLOSELINE)); }catch(e){} }
+}
 
 // per-game total history in the browser (builds a real trend while you watch)
 const histKey = id => 'uc_h_'+id;
@@ -1194,7 +1209,7 @@ async function refreshLiveData(){
   try{ if(hasOdds && Date.now()-LAST_ODDS>45000){ await applyOddsAPI(STATE.games); LAST_ODDS=Date.now(); } }catch(e){}
   // live box-score stats + current conditions, refreshed ~every 45s
   try{ if(Date.now()-LAST_STATS>30000){ await attachLiveStats(STATE.games); await attachLiveWeather(STATE.games); LAST_STATS=Date.now(); } }catch(e){}
-  STATE.games.forEach(recordTotal);
+  STATE.games.forEach(recordTotal); captureCloseLines(STATE.games);
 }
 // sample-mode demo: make a couple of games "live" and nudge score/total so the feature is visible
 function simulateLiveTick(){
@@ -1219,7 +1234,7 @@ function simulateLiveTick(){
       L.qbChange = i===1 && Math.abs((+L.homeScore||0)-(+L.awayScore||0))<=8;  // demo: game 1 backup QB
     }
   });
-  STATE.games.forEach(recordTotal);
+  STATE.games.forEach(recordTotal); captureCloseLines(STATE.games);
 }
 async function tickLive(){
   if(REFRESHING || MODE!=='live') return;
