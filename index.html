@@ -154,6 +154,16 @@ main{padding:.4rem 1rem 3rem}
 .edgebar{height:4px;background:var(--panel2);position:relative}
 .edgebar i{position:absolute;left:0;top:0;bottom:0;background:linear-gradient(90deg,#1c6b58,var(--under))}
 
+/* live weather-over-the-game readout */
+.wxtrend{margin:.7rem .9rem 0;background:#0f1a24;border:1px solid var(--line);border-radius:9px;
+  padding:.45rem .65rem;display:flex;align-items:center;gap:.55rem;font-size:.72rem;flex-wrap:wrap}
+.wxtrend .wl{color:var(--dim);text-transform:uppercase;letter-spacing:.05em;font-size:.58rem}
+.wxtrend .wv{font-family:"Barlow Condensed";font-size:.95rem;color:var(--mid)}
+.wxtrend .wv b{color:var(--txt);font-size:1.15rem;font-weight:700}
+.wxtrend .wa.up{color:var(--under)} .wxtrend .wa.dn{color:var(--mid)}
+.wxtrend .wp{margin-left:auto;font-weight:600;color:var(--mid)}
+.wxtrend .wp.wet{color:#7fb3ff}
+.wxtrend .wt{color:var(--dim)}
 /* settled-game grade badges */
 .grades{margin:.55rem .9rem 0;display:flex;flex-wrap:wrap;gap:.4rem;align-items:center}
 .grades .gr-h{font-size:.56rem;color:var(--dim);text-transform:uppercase;letter-spacing:.07em}
@@ -1426,6 +1436,24 @@ function liveWx(g){
   const label = w.wind>=15 ? `🌬️ ${w.wind} mph live` : rain ? `🌧️ ${w.precipIntensity} rain live` : `🌬️ ${w.wind} mph`;
   return {wind:w.wind, rain, nasty, label};
 }
+// Weather over the course of the game: current conditions vs the kickoff
+// forecast for outdoor in-progress games, so you can watch it change live.
+function liveWxTrend(g){
+  if(MODE!=='live') return '';
+  const L=g.live; if(!L || L.state!=='in' || g.roof!=='open') return '';
+  const now=L.wxNow; if(!now || now.wind==null) return '';
+  const kw = (g.weather && g.weather.windMph!=null) ? g.weather.windMph : null;
+  const d = kw!=null ? now.wind-kw : null;
+  const arrow = d!=null && Math.abs(d)>=2 ? (d>0?'▲':'▼') : '';
+  const rising = d!=null && d>0;                       // wind climbing → under-friendly
+  const precip = now.precipType==='rain' ? `${now.precipIntensity} rain`
+    : now.precipType==='snow' ? `${now.precipIntensity} snow` : 'dry';
+  return `<div class="wxtrend">
+    <span class="wl">🌬️ Weather now</span>
+    <span class="wv">${kw!=null?`${kw} → `:''}<b>${now.wind}</b> mph${arrow?` <span class="wa ${rising?'up':'dn'}">${arrow}</span>`:''}</span>
+    <span class="wp ${precip!=='dry'?'wet':''}">${precip}</span>
+    ${now.tempF!=null?`<span class="wt">${now.tempF}°</span>`:''}</div>`;
+}
 function liveTrendStrip(g){
   if(MODE!=='live') return '';
   const s = liveUnderSignal(g);           // YPP-based (may be null)
@@ -1514,6 +1542,7 @@ function gameCard(g){
     </div>
     <div class="edgebar"><i style="width:${barPct}%"></i></div>
     ${liveTrendStrip(g)}
+    ${liveWxTrend(g)}
     ${gradeStrip(g)}
     ${totalTrend(g)}
     <button class="why-btn" onclick="toggleWhy('${g.id}',this)">
@@ -1521,61 +1550,42 @@ function gameCard(g){
     ${whyHTML(g)}
   </div>`;
 }
-// Record every notable UNDER signal on a game so we can grade it once final.
-// Live signals are captured while the game is in progress (before the box score
-// disappears); the weather lean is deterministic and gradeable any time.
+// Record the KICKOFF weather under lean per game (penalty is computed from the
+// kickoff-hour forecast), so we can grade that one signal against the final.
 function logSignal(g){
   const e=g.e, gid=g.id;
   let rec = SIGLOG[gid] || {away:g.awayAb, home:g.homeAb, week:STATE.week};
-  if(e.lean==='under') rec.weather = {strong: e.penalty>=2.5};
-  if(g.live && g.live.state==='in'){
-    const s = liveUnderSignal(g), wx = liveWx(g);
-    rec.live = rec.live || {ypp:false, strong:false, wx:false, qb:false};
-    if(s && s.side==='under'){ rec.live.ypp = true; rec.live.strong = rec.live.strong || s.strong; }
-    if(wx && wx.nasty && !(s && s.side==='over')) rec.live.wx = true;
-    if(g.live.qbChange) rec.live.qb = true;
-  }
+  if(e.lean==='under') rec.weather = {strong: e.penalty>=2.5, penalty:e.penalty};
   if(e.isFinal && e.result && e.result.outcome){ rec.result = e.result.outcome; rec.line = e.result.line ?? rec.line; }
-  if(rec.weather || rec.live) SIGLOG[gid] = rec;   // only keep games that got a signal
+  if(rec.weather) SIGLOG[gid] = rec;   // only keep games we flagged for weather
 }
-// Grade badges on a settled card: did each signal (all UNDER leans) hit?
+// Grade badge on a settled card: did the kickoff weather under lean hit?
 function gradeStrip(g){
-  const e=g.e; if(!e.isFinal || !e.result || !e.result.outcome) return '';
-  const rec = SIGLOG[g.id], oc = e.result.outcome, items=[];
-  const w = (rec&&rec.weather) || (e.lean==='under' ? {strong:e.penalty>=2.5} : null);
-  if(w) items.push('Weather'+(w.strong?' (strong)':''));
-  if(rec&&rec.live){ if(rec.live.ypp) items.push('Live YPP'+(rec.live.strong?' (strong)':''));
-    if(rec.live.wx) items.push('Live weather'); if(rec.live.qb) items.push('Backup QB'); }
-  if(!items.length) return '';
+  const e=g.e; if(!e.isFinal || !e.result || !e.result.outcome || e.lean!=='under') return '';
+  const oc = e.result.outcome;
   const mk = oc==='push'?'push':oc==='under'?'hit':'miss';
   const sym = oc==='push'?'— push':oc==='under'?'✓ right':'✗ wrong';
-  return `<div class="grades"><span class="gr-h">Our call</span>
-    ${items.map(l=>`<span class="gr ${mk}">${l} · ${sym}</span>`).join('')}</div>`;
+  const label = 'Weather under'+(e.penalty>=2.5?' (strong)':'');
+  return `<div class="grades"><span class="gr-h">Our call</span><span class="gr ${mk}">${label} · ${sym}</span></div>`;
 }
-// Season track record from graded signals, by category.
-function trackRecord(){
-  const t={weather:[0,0,0], ypp:[0,0,0], wx:[0,0,0], qb:[0,0,0]};
-  const bump=(k,oc)=>{ t[k][oc==='under'?0:oc==='over'?1:2]++; };
-  for(const gid in SIGLOG){ const r=SIGLOG[gid]; if(!r.result) continue;
-    if(r.weather) bump('weather', r.result);
-    if(r.live){ if(r.live.ypp)bump('ypp',r.result); if(r.live.wx)bump('wx',r.result); if(r.live.qb)bump('qb',r.result); } }
-  return t;
+// Season track record for the kickoff weather under signal (all + strong).
+function trackRecord(){ const all=[0,0,0], strong=[0,0,0];
+  const bump=(a,oc)=>{ a[oc==='under'?0:oc==='over'?1:2]++; };
+  for(const gid in SIGLOG){ const r=SIGLOG[gid]; if(!r.result||!r.weather) continue;
+    bump(all, r.result); if(r.weather.strong) bump(strong, r.result); }
+  return {all, strong};
 }
 function renderTrackRecord(){
   const el=document.getElementById('trackRec'); if(!el) return;
-  const t=trackRecord(), rows=[];
-  const line=(label,a)=>{ const g=a[0]+a[1]+a[2]; if(!g) return;
-    const pct = (a[0]+a[1]) ? Math.round(a[0]/(a[0]+a[1])*100) : 0;
-    rows.push(`<div class="tr-row"><span class="tr-l">${label}</span>
+  const {all, strong}=trackRecord();
+  if(!(all[0]+all[1]+all[2])){ el.innerHTML=''; return; }
+  const row=(label,a)=>{ const dec=a[0]+a[1]; if(!(dec+a[2])) return '';
+    const pct=dec?Math.round(a[0]/dec*100):0;
+    return `<div class="tr-row"><span class="tr-l">${label}</span>
       <span class="tr-rec">${a[0]}–${a[1]}${a[2]?' ('+a[2]+'P)':''}</span>
-      <span class="tr-pct ${pct>=52?'good':pct>0?'bad':''}">${(a[0]+a[1])?pct+'%':'—'}</span></div>`); };
-  line('Weather unders', t.weather);
-  line('Live YPP', t.ypp);
-  line('Live weather', t.wx);
-  line('Backup QB', t.qb);
-  el.innerHTML = rows.length
-    ? `<div class="trackrec"><div class="tr-cap">📋 Track record · did our under signals hit?</div>${rows.join('')}</div>`
-    : '';
+      <span class="tr-pct ${pct>=52?'good':'bad'}">${dec?pct+'%':'—'}</span></div>`; };
+  el.innerHTML = `<div class="trackrec"><div class="tr-cap">📋 Kickoff weather unders · did they hit?</div>
+    ${row('All weather unders', all)}${row('Strong only (≥2.5)', strong)}</div>`;
 }
 function toggleWhy(id,btn){
   const el=document.getElementById('why-'+id); el.classList.toggle('open');
