@@ -66,6 +66,12 @@ header{position:sticky;top:0;z-index:50;background:rgba(10,14,23,.9);
 .confarrow{flex:0 0 auto;width:28px;height:30px;border-radius:8px;background:var(--panel2);border:1px solid var(--line);
   color:var(--mid);font-size:1rem;line-height:1;display:grid;place-items:center}
 .confarrow:active{transform:scale(.9)}
+.weekrow{display:flex;align-items:center;gap:.4rem;margin:.2rem 0 .8rem}
+.weekrow .wkarrow{flex:0 0 auto;width:30px;height:34px;border-radius:8px;background:var(--panel2);
+  border:1px solid var(--line);color:var(--mid);font-size:1.1rem;line-height:1;display:grid;place-items:center}
+.weekrow .wkarrow:active{transform:scale(.9)}
+.weekrow select{flex:1;background:var(--panel2);color:var(--txt);border:1px solid var(--line);
+  border-radius:8px;padding:.5rem .6rem;font-size:.85rem;font-weight:600;font-family:inherit;text-align:center}
 .confbar{display:flex;gap:.4rem;overflow-x:auto;padding:.15rem 0;-webkit-overflow-scrolling:touch;scrollbar-width:none}
 .confbar::-webkit-scrollbar{display:none}
 .confpill{flex:0 0 auto;background:var(--panel2);border:1px solid var(--line);color:var(--mid);border-radius:20px;
@@ -148,6 +154,22 @@ main{padding:.4rem 1rem 3rem}
 .edgebar{height:4px;background:var(--panel2);position:relative}
 .edgebar i{position:absolute;left:0;top:0;bottom:0;background:linear-gradient(90deg,#1c6b58,var(--under))}
 
+/* settled-game grade badges */
+.grades{margin:.55rem .9rem 0;display:flex;flex-wrap:wrap;gap:.4rem;align-items:center}
+.grades .gr-h{font-size:.56rem;color:var(--dim);text-transform:uppercase;letter-spacing:.07em}
+.grades .gr{font-size:.62rem;font-weight:700;padding:.16rem .45rem;border-radius:6px}
+.grades .gr.hit{background:var(--under-d);color:var(--under)}
+.grades .gr.miss{background:#2a1512;color:var(--hot)}
+.grades .gr.push{background:var(--panel2);color:var(--mid)}
+/* season track-record panel */
+.trackrec{background:var(--panel);border:1px solid var(--line);border-radius:var(--r);padding:.7rem .85rem;margin-bottom:.9rem}
+.tr-cap{font-size:.62rem;color:var(--dim);text-transform:uppercase;letter-spacing:.06em;margin-bottom:.5rem}
+.tr-row{display:flex;align-items:center;gap:.6rem;padding:.28rem 0;border-top:1px solid var(--line)}
+.tr-row:first-of-type{border-top:none}
+.tr-l{flex:1;font-size:.78rem;color:var(--txt);font-weight:600}
+.tr-rec{font-family:"Barlow Condensed";font-weight:700;font-size:1.05rem;color:var(--mid)}
+.tr-pct{font-family:"Barlow Condensed";font-weight:700;font-size:1.05rem;width:44px;text-align:right;color:var(--dim)}
+.tr-pct.good{color:var(--under)} .tr-pct.bad{color:var(--hot)}
 /* live under-o-meter (validated YPP trend) */
 .ltrend{margin:.7rem .9rem 0;background:#161d2e;border:1px solid var(--line);border-radius:9px;padding:.5rem .65rem}
 .ltrend.under{border-color:#1c5a4a;background:#0f2620}
@@ -355,6 +377,11 @@ main{padding:.4rem 1rem 3rem}
         <div class="confbar" id="confPills"></div>
         <button class="confarrow" onclick="cycleConf(1)" aria-label="Next conference">›</button>
       </div>
+      <div class="weekrow" id="weekrow">
+        <button class="wkarrow" onclick="stepWeek(-1)" aria-label="Previous week">‹</button>
+        <select id="weekSel" onchange="setWeek(this.value)"></select>
+        <button class="wkarrow" onclick="stepWeek(1)" aria-label="Next week">›</button>
+      </div>
       <div class="strip">
         <div class="stat"><div class="n" id="sGames">–</div><div class="l">Games</div></div>
         <div class="stat"><div class="n u" id="sUnders">–</div><div class="l">Weather Unders</div></div>
@@ -368,6 +395,7 @@ main{padding:.4rem 1rem 3rem}
           <option value="time">Sort: Kickoff</option>
         </select>
       </div>
+      <div id="trackRec"></div>
       <div id="gameList"></div>
       <div class="disc">
         <b>⚠️ For entertainment only.</b> UnderCast is a weather-based model, not betting advice
@@ -826,7 +854,7 @@ async function attachWeather(games){
       const u = `https://api.open-meteo.com/v1/forecast?latitude=${g.lat}&longitude=${g.lon}`
         + `&hourly=temperature_2m,precipitation,precipitation_probability,weather_code,`
         + `wind_speed_10m,wind_gusts_10m,relative_humidity_2m`
-        + `&temperature_unit=fahrenheit&wind_speed_unit=mph&timezone=UTC&forecast_days=10`;
+        + `&temperature_unit=fahrenheit&wind_speed_unit=mph&timezone=UTC&past_days=14&forecast_days=10`;
       const d = await fetchJSON(u);
       const times = d.hourly.time, target = new Date(g.kickISO).getTime();
       let bi=0, bd=Infinity;
@@ -1009,6 +1037,7 @@ function sampleGames(){
 /* ---------- STATE ---------- */
 const STATE = { games:[], live:false, loading:true, err:null, week:null, season:null };
 let MODE='live', TAB='games', LEAGUE='nfl', CONF='top25';   // one always-live board (no pre/live toggle)
+let WEEK=null, CURWEEK=null, SEASON_YR=2026;                 // NFL week selector (null = current/upcoming)
 
 function setLoading(on){
   STATE.loading = on;
@@ -1044,10 +1073,14 @@ async function loadData(){
       await attachGeo(games);
       await attachWeather(games);
     } else {
-      const d = await fetchJSON(ESPN_URL, 9000);
+      const url = ESPN_URL + (WEEK ? `?seasontype=2&week=${WEEK}&dates=${SEASON_YR}` : '');
+      const d = await fetchJSON(url, 9000);
       games = buildGamesFromESPN(d);
       if(!games.length) throw new Error('no games');
       STATE.week = d.week && d.week.number; STATE.season = d.season && d.season.year;
+      SEASON_YR = STATE.season || SEASON_YR;
+      if(CURWEEK==null) CURWEEK = STATE.week;   // first (default) load reveals the current week
+      if(WEEK==null) WEEK = STATE.week;
       await attachWeather(games);
     }
     try{ await applyOddsAPI(games); }catch(e){ /* keep consensus totals */ }
@@ -1056,7 +1089,8 @@ async function loadData(){
   }catch(e){
     STATE.games = LEAGUE==='cfb' ? sampleCFB() : sampleGames();
     seedDemoBooks(STATE.games);
-    STATE.live=false; STATE.err=e.message; STATE.week=null; STATE.season=2026;
+    if(CURWEEK==null) CURWEEK=2; if(WEEK==null) WEEK=2;      // demo: pretend it's Week 2
+    STATE.live=false; STATE.err=e.message; STATE.week=WEEK; STATE.season=2026;
   }
   setLoading(false);
   STATE.games.forEach(recordTotal);
@@ -1066,6 +1100,11 @@ async function loadData(){
 
 /* ---------- LIVE: score, total-over-time, ~1-min auto-refresh ---------- */
 let LIVE_TIMER=null, FRESH_TIMER=null, REFRESHING=false, LAST_TICK=0, LAST_ODDS=0, LAST_STATS=0;
+
+// signal log — records which signals fired on each game so we can grade them
+// against the final over/under result (our track record). Persists in the browser.
+let SIGLOG = {}; try{ SIGLOG = JSON.parse(localStorage.getItem('uc_siglog')||'{}'); }catch(e){ SIGLOG = {}; }
+function saveSiglog(){ try{ localStorage.setItem('uc_siglog', JSON.stringify(SIGLOG)); }catch(e){} }
 
 // per-game total history in the browser (builds a real trend while you watch)
 const histKey = id => 'uc_h_'+id;
@@ -1124,8 +1163,11 @@ function moveLog(g){
     <div class="forecast">Recorded on this device while the app was open — not the full market history.</div>`;
 }
 
+const isPastWeek = () => LEAGUE==='nfl' && WEEK && CURWEEK && WEEK<CURWEEK;
 async function refreshLiveData(){
-  const url = LEAGUE==='cfb' ? (CFB_URL + (CONF==='top25'?'?groups=80&limit=200':`?groups=${CONF}&limit=200`)) : ESPN_URL;
+  if(isPastWeek()) return;                    // a finished week never changes — nothing to refresh
+  const url = LEAGUE==='cfb' ? (CFB_URL + (CONF==='top25'?'?groups=80&limit=200':`?groups=${CONF}&limit=200`))
+    : ESPN_URL + (WEEK ? `?seasontype=2&week=${WEEK}&dates=${SEASON_YR}` : '');
   const d = await fetchJSON(url, 9000);
   const fresh = LEAGUE==='cfb' ? buildGamesFromCFB(d) : buildGamesFromESPN(d);
   const byId={}; fresh.forEach(f=>byId[f.id]=f);
@@ -1225,10 +1267,28 @@ function setLeague(l){
   document.getElementById('lNFL').classList.toggle('on', l==='nfl');
   document.getElementById('lCFB').classList.toggle('on', l==='cfb');
   document.getElementById('confbar').style.display = l==='cfb' ? 'flex' : 'none';
+  document.getElementById('weekrow').style.display = l==='nfl' ? 'flex' : 'none';
   document.getElementById('sortSel').value = 'edge';
   renderConfBar();
   loadData();
 }
+// NFL week selector — default is the current/upcoming slate; step back for results.
+function renderWeekBar(){
+  const row=document.getElementById('weekrow'); if(!row) return;
+  row.style.display = LEAGUE==='nfl' ? 'flex' : 'none';
+  if(LEAGUE!=='nfl') return;
+  const sel=document.getElementById('weekSel'); const cur=CURWEEK||WEEK||1;
+  const max=Math.max(18, cur);
+  const sig=`${cur}:${WEEK||cur}`; if(sel.dataset.sig===sig) return; sel.dataset.sig=sig;   // don't rebuild every tick
+  let html='';
+  for(let w=1; w<=max; w++){
+    const tag = w===cur ? ' — this week' : w<cur ? ' — final' : '';
+    html += `<option value="${w}"${w===(WEEK||cur)?' selected':''}>Week ${w}${tag}</option>`;
+  }
+  sel.innerHTML=html;
+}
+function setWeek(v){ const w=+v; if(w===WEEK) return; WEEK=w; loadData(); }
+function stepWeek(dir){ const cur=WEEK||CURWEEK||1; const w=Math.min(Math.max(cur+dir,1),Math.max(18,CURWEEK||18)); setWeek(w); }
 function setConf(id){ if(id===CONF) return; CONF=id; renderConfBar(); loadData(); }
 function cycleConf(dir){
   const i = CONFERENCES.findIndex(c=>c.id===CONF);
@@ -1454,11 +1514,68 @@ function gameCard(g){
     </div>
     <div class="edgebar"><i style="width:${barPct}%"></i></div>
     ${liveTrendStrip(g)}
+    ${gradeStrip(g)}
     ${totalTrend(g)}
     <button class="why-btn" onclick="toggleWhy('${g.id}',this)">
       ${e.penalty>0?`Weather edge −${e.penalty} pts`:'No weather edge'} · Why <span class="cx">▾</span></button>
     ${whyHTML(g)}
   </div>`;
+}
+// Record every notable UNDER signal on a game so we can grade it once final.
+// Live signals are captured while the game is in progress (before the box score
+// disappears); the weather lean is deterministic and gradeable any time.
+function logSignal(g){
+  const e=g.e, gid=g.id;
+  let rec = SIGLOG[gid] || {away:g.awayAb, home:g.homeAb, week:STATE.week};
+  if(e.lean==='under') rec.weather = {strong: e.penalty>=2.5};
+  if(g.live && g.live.state==='in'){
+    const s = liveUnderSignal(g), wx = liveWx(g);
+    rec.live = rec.live || {ypp:false, strong:false, wx:false, qb:false};
+    if(s && s.side==='under'){ rec.live.ypp = true; rec.live.strong = rec.live.strong || s.strong; }
+    if(wx && wx.nasty && !(s && s.side==='over')) rec.live.wx = true;
+    if(g.live.qbChange) rec.live.qb = true;
+  }
+  if(e.isFinal && e.result && e.result.outcome){ rec.result = e.result.outcome; rec.line = e.result.line ?? rec.line; }
+  if(rec.weather || rec.live) SIGLOG[gid] = rec;   // only keep games that got a signal
+}
+// Grade badges on a settled card: did each signal (all UNDER leans) hit?
+function gradeStrip(g){
+  const e=g.e; if(!e.isFinal || !e.result || !e.result.outcome) return '';
+  const rec = SIGLOG[g.id], oc = e.result.outcome, items=[];
+  const w = (rec&&rec.weather) || (e.lean==='under' ? {strong:e.penalty>=2.5} : null);
+  if(w) items.push('Weather'+(w.strong?' (strong)':''));
+  if(rec&&rec.live){ if(rec.live.ypp) items.push('Live YPP'+(rec.live.strong?' (strong)':''));
+    if(rec.live.wx) items.push('Live weather'); if(rec.live.qb) items.push('Backup QB'); }
+  if(!items.length) return '';
+  const mk = oc==='push'?'push':oc==='under'?'hit':'miss';
+  const sym = oc==='push'?'— push':oc==='under'?'✓ right':'✗ wrong';
+  return `<div class="grades"><span class="gr-h">Our call</span>
+    ${items.map(l=>`<span class="gr ${mk}">${l} · ${sym}</span>`).join('')}</div>`;
+}
+// Season track record from graded signals, by category.
+function trackRecord(){
+  const t={weather:[0,0,0], ypp:[0,0,0], wx:[0,0,0], qb:[0,0,0]};
+  const bump=(k,oc)=>{ t[k][oc==='under'?0:oc==='over'?1:2]++; };
+  for(const gid in SIGLOG){ const r=SIGLOG[gid]; if(!r.result) continue;
+    if(r.weather) bump('weather', r.result);
+    if(r.live){ if(r.live.ypp)bump('ypp',r.result); if(r.live.wx)bump('wx',r.result); if(r.live.qb)bump('qb',r.result); } }
+  return t;
+}
+function renderTrackRecord(){
+  const el=document.getElementById('trackRec'); if(!el) return;
+  const t=trackRecord(), rows=[];
+  const line=(label,a)=>{ const g=a[0]+a[1]+a[2]; if(!g) return;
+    const pct = (a[0]+a[1]) ? Math.round(a[0]/(a[0]+a[1])*100) : 0;
+    rows.push(`<div class="tr-row"><span class="tr-l">${label}</span>
+      <span class="tr-rec">${a[0]}–${a[1]}${a[2]?' ('+a[2]+'P)':''}</span>
+      <span class="tr-pct ${pct>=52?'good':pct>0?'bad':''}">${(a[0]+a[1])?pct+'%':'—'}</span></div>`); };
+  line('Weather unders', t.weather);
+  line('Live YPP', t.ypp);
+  line('Live weather', t.wx);
+  line('Backup QB', t.qb);
+  el.innerHTML = rows.length
+    ? `<div class="trackrec"><div class="tr-cap">📋 Track record · did our under signals hit?</div>${rows.join('')}</div>`
+    : '';
 }
 function toggleWhy(id,btn){
   const el=document.getElementById('why-'+id); el.classList.toggle('open');
@@ -1478,6 +1595,7 @@ function renderGames(){
     if(sort==='time') return a.kickSort-b.kickSort;
     return b.e.penalty-a.e.penalty;
   });
+  list.forEach(logSignal); saveSiglog(); renderTrackRecord();
   document.getElementById('gameList').innerHTML =
     list.map(gameCard).join('') || '<div class="empty">No games on the board right now.<br>Check back closer to game day.</div>';
   const unders=list.filter(g=>g.e.lean==='under');
@@ -1522,7 +1640,7 @@ function renderLocks(){
 function renderAll(){
   document.getElementById('wkNum').textContent = STATE.week ?? '–';
   document.getElementById('wkSeason').textContent = STATE.season ?? '–';
-  setStatus(); renderGames(); renderLocks();
+  renderWeekBar(); setStatus(); renderGames(); renderLocks();
 }
 
 /* ---------- BOOT ---------- */
