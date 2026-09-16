@@ -1085,14 +1085,24 @@ async function loadData(){
       await attachGeo(games);
       await attachWeather(games);
     } else {
-      const url = ESPN_URL + (WEEK ? `?seasontype=2&week=${WEEK}&dates=${SEASON_YR}` : '');
-      const d = await fetchJSON(url, 9000);
+      const explicit = WEEK!=null;   // user picked a week → honor it; else discover the current slate
+      let d = await fetchJSON(ESPN_URL + (explicit ? `?seasontype=2&week=${WEEK}&dates=${SEASON_YR}` : ''), 9000);
       games = buildGamesFromESPN(d);
+      if(!explicit){
+        // Default to the UPCOMING slate: if ESPN's current week is already fully
+        // final (e.g., once the Monday night game ends), jump to the next week.
+        SEASON_YR = (d.season && d.season.year) || SEASON_YR;
+        const done = games.length && games.every(g=>g.live && g.live.state==='post');
+        if(done){
+          const nextWk = (d.week && d.week.number || 1) + 1;
+          try{ const dn = await fetchJSON(ESPN_URL+`?seasontype=2&week=${nextWk}&dates=${SEASON_YR}`, 9000);
+            const gn = buildGamesFromESPN(dn); if(gn.length){ d=dn; games=gn; } }catch(e){}
+        }
+        CURWEEK = d.week && d.week.number; WEEK = CURWEEK;
+      }
       if(!games.length) throw new Error('no games');
       STATE.week = d.week && d.week.number; STATE.season = d.season && d.season.year;
       SEASON_YR = STATE.season || SEASON_YR;
-      if(CURWEEK==null) CURWEEK = STATE.week;   // first (default) load reveals the current week
-      if(WEEK==null) WEEK = STATE.week;
       await attachWeather(games);
     }
     try{ await applyOddsAPI(games); }catch(e){ /* keep consensus totals */ }
