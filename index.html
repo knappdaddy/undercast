@@ -58,6 +58,18 @@ header{position:sticky;top:0;z-index:50;background:rgba(10,14,23,.9);
 .dstat b{color:var(--mid)}
 
 @keyframes pulse{0%{box-shadow:0 0 0 0 rgba(242,104,60,.6)}70%{box-shadow:0 0 0 7px rgba(242,104,60,0)}100%{box-shadow:0 0 0 0 rgba(242,104,60,0)}}
+/* big unmissable loading banner */
+.loadbanner{position:sticky;top:0;z-index:100;display:flex;align-items:center;gap:.9rem;
+  padding:1.05rem 1.1rem;border-radius:14px;margin-bottom:.7rem;
+  background:linear-gradient(100deg,#b7791f,#d69e2e);color:#fff;
+  box-shadow:0 6px 22px rgba(214,158,46,.4);animation:lbpulse 1.4s ease-in-out infinite}
+@keyframes lbpulse{0%,100%{opacity:1}50%{opacity:.82}}
+.loadbanner .lb-spin{flex:0 0 auto;width:30px;height:30px;border-radius:50%;
+  border:4px solid rgba(255,255,255,.35);border-top-color:#fff;animation:lbspin .8s linear infinite}
+@keyframes lbspin{to{transform:rotate(360deg)}}
+.loadbanner .lb-title{font-family:"Barlow Condensed",sans-serif;font-weight:700;font-size:1.5rem;line-height:1.05;
+  text-transform:uppercase;letter-spacing:.02em}
+.loadbanner .lb-sub{font-size:.8rem;opacity:.92;margin-top:.15rem}
 .leaguebar{display:flex;gap:.4rem;margin-top:.6rem}
 .leaguebar button{flex:1;background:var(--panel2);border:1px solid var(--line);color:var(--mid);padding:.5rem;
   border-radius:10px;font-size:.82rem;font-weight:700;display:flex;align-items:center;justify-content:center;gap:.4rem;transition:.15s}
@@ -346,6 +358,11 @@ main{padding:.4rem 1rem 3rem}
 </head>
 <body>
 <div class="wrap">
+  <div id="loadbanner" class="loadbanner" hidden>
+    <div class="lb-spin"></div>
+    <div class="lb-txt"><div class="lb-title">Loading live data…</div>
+      <div class="lb-sub">Scores, lines and forecasts are coming in — one moment.</div></div>
+  </div>
   <header>
     <div class="hd-top">
       <div class="brand">
@@ -1076,11 +1093,35 @@ const STATE = { games:[], live:false, loading:true, err:null, week:null, season:
 let MODE='live', TAB='games', LEAGUE='nfl', CONF='top25';   // one always-live board (no pre/live toggle)
 let WEEK=null, CURWEEK=null, SEASON_YR=2026;                 // NFL week selector (null = current/upcoming)
 
+let LOAD_TS = 0;
 function setLoading(on){
   STATE.loading = on;
   const ds = document.getElementById('dstat'), rb = document.getElementById('refreshBtn');
-  if(on){ ds.className='dstat load'; document.getElementById('dstatTxt').textContent='Loading live data…'; rb.classList.add('spin'); }
+  if(on){ LOAD_TS = Date.now(); ds.className='dstat load'; document.getElementById('dstatTxt').textContent='Loading live data…'; rb.classList.add('spin'); }
   else rb.classList.remove('spin');
+  updateLoadBanner();
+}
+// Still trickling in? A game missing its total line, or an outdoor game with no
+// forecast yet, means data hasn't fully arrived.
+function dataFilling(){
+  if(!STATE.games || !STATE.games.length) return false;
+  return STATE.games.some(g=>{
+    const noLine = g.marketTotal==null && g.espnTotal==null;
+    const noWx = g.roof==='open' && (!g.weather || g.weather.unknown);
+    return noLine || noWx;
+  });
+}
+function updateLoadBanner(){
+  const el=document.getElementById('loadbanner'); if(!el) return;
+  const loading = !!STATE.loading;
+  const filling = !loading && STATE.live && (Date.now()-LOAD_TS < 90000) && dataFilling();
+  if(loading || filling){
+    el.hidden=false;
+    el.querySelector('.lb-title').textContent = loading ? 'Loading live data…' : 'Still loading…';
+    el.querySelector('.lb-sub').textContent = loading
+      ? 'Scores, lines and forecasts are coming in — one moment.'
+      : 'Some odds, scores or forecasts are still trickling in — hang tight.';
+  } else { el.hidden=true; }
 }
 function setStatus(){
   const ds=document.getElementById('dstat'), txt=document.getElementById('dstatTxt');
@@ -1700,7 +1741,7 @@ function renderLocks(){
 function renderAll(){
   document.getElementById('wkNum').textContent = STATE.week ?? '–';
   document.getElementById('wkSeason').textContent = STATE.season ?? '–';
-  renderWeekBar(); setStatus(); renderGames(); renderLocks();
+  renderWeekBar(); setStatus(); renderGames(); renderLocks(); updateLoadBanner();
 }
 
 /* ---------- BOOT ---------- */
