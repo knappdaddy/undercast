@@ -820,17 +820,17 @@ async function attachLiveStats(games){
 async function attachLiveWeather(games){
   const inplay = games.filter(g => g.live && g.live.state==='in' && g.roof==='open' && g.lat!=null);
   if(!inplay.length) return;
-  await Promise.all(inplay.map(async g=>{
+  await pool(inplay, 4, async g=>{
     try{
       const u = `https://api.open-meteo.com/v1/forecast?latitude=${g.lat}&longitude=${g.lon}`
         + `&current=temperature_2m,precipitation,weather_code,wind_speed_10m`
         + `&temperature_unit=fahrenheit&wind_speed_unit=mph`;
-      const d = await fetchJSON(u, 8000); const c = d.current||{};
+      const d = await wxFetch(u, 2); const c = d.current||{};
       const p = classifyPrecip(c.weather_code, c.precipitation||0);
       g.live.wxNow = { wind: Math.round(c.wind_speed_10m), tempF: Math.round(c.temperature_2m),
         precipType: p.type, precipIntensity: p.intensity, mm: c.precipitation||0 };
     }catch(e){ /* no live weather → confirmer just won't show */ }
-  }));
+  });
 }
 
 function buildGamesFromESPN(d){
@@ -859,15 +859,35 @@ function buildGamesFromESPN(d){
   });
 }
 
+// Open-Meteo rate-limits per IP, so we cache each game's forecast, retry with
+// backoff on 429/5xx, and cap concurrency — a transient throttle then falls
+// back to the cached forecast instead of blanking the whole slate.
+let WXCACHE = {}; try{ WXCACHE = JSON.parse(localStorage.getItem('uc_wx')||'{}'); }catch(e){ WXCACHE = {}; }
+function saveWx(){ try{ localStorage.setItem('uc_wx', JSON.stringify(WXCACHE)); }catch(e){} }
+async function wxFetch(url, tries=3){
+  for(let a=0; a<tries; a++){
+    try{ const r = await fetch(url); if(r.ok) return await r.json();
+      if(!(r.status===429 || r.status>=500)) throw new Error('HTTP '+r.status);
+    }catch(e){ if(a===tries-1) throw e; }
+    await new Promise(s=>setTimeout(s, 400*(a+1)*(a+1)));   // 0.4s, 1.6s, 3.6s
+  }
+  throw new Error('wx retries exhausted');
+}
+async function pool(items, n, fn){ let i=0;
+  await Promise.all(Array(Math.min(n, items.length)).fill(0).map(async()=>{
+    while(i<items.length){ const idx=i++; await fn(items[idx]); } })); }
+
 async function attachWeather(games){
-  await Promise.all(games.map(async g=>{
+  const pastDays = isPastWeek() ? 16 : 3;          // light for the live slate; deeper only for grading old weeks
+  await pool(games, 4, async g=>{
     if(g.roof!=='open' || g.lat==null){ g.weather = {indoorNeutral:true}; return; }
+    const ck = g.id+'@'+String(g.kickISO||'').slice(0,13);
     try{
       const u = `https://api.open-meteo.com/v1/forecast?latitude=${g.lat}&longitude=${g.lon}`
         + `&hourly=temperature_2m,precipitation,precipitation_probability,weather_code,`
         + `wind_speed_10m,wind_gusts_10m,relative_humidity_2m`
-        + `&temperature_unit=fahrenheit&wind_speed_unit=mph&timezone=UTC&past_days=14&forecast_days=10`;
-      const d = await fetchJSON(u);
+        + `&temperature_unit=fahrenheit&wind_speed_unit=mph&timezone=UTC&past_days=${pastDays}&forecast_days=10`;
+      const d = await wxFetch(u);
       const times = d.hourly.time, target = new Date(g.kickISO).getTime();
       let bi=0, bd=Infinity;
       for(let i=0;i<times.length;i++){
@@ -885,8 +905,13 @@ async function attachWeather(games){
         humidity: d.hourly.relative_humidity_2m[bi] ?? 0,
         sky: skyText(code)
       };
-    }catch(e){ g.weather = {unknown:true, sky:'Forecast unavailable'}; }
-  }));
+      WXCACHE[ck] = {w:g.weather, t:Date.now()};          // remember a good forecast
+    }catch(e){
+      const c = WXCACHE[ck];
+      g.weather = c ? c.w : {unknown:true, sky:'Forecast unavailable'};   // survive a transient rate-limit
+    }
+  });
+  saveWx();
 }
 
 const normTeam = s => (s||'').toLowerCase().replace(/[^a-z]/g,'');
