@@ -1,0 +1,15 @@
+name: Weather Check
+on:
+  workflow_dispatch:
+jobs:
+  wx:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - name: Probe Open-Meteo
+        run: |
+          node tools/wx-check.mjs | tee /tmp/out.txt
+          { echo '### Open-Meteo probe'; echo '```'; cat /tmp/out.txt; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
