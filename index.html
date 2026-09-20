@@ -883,9 +883,11 @@ let WXCACHE = {}; try{ WXCACHE = JSON.parse(localStorage.getItem('uc_wx')||'{}')
 function saveWx(){ try{ localStorage.setItem('uc_wx', JSON.stringify(WXCACHE)); }catch(e){} }
 async function wxFetch(url, tries=3){
   for(let a=0; a<tries; a++){
-    try{ const r = await fetch(url); if(r.ok) return await r.json();
+    const ctrl=new AbortController(); const t=setTimeout(()=>ctrl.abort(), 9000);   // never hang the load
+    try{ const r = await fetch(url,{signal:ctrl.signal}); if(r.ok) return await r.json();
       if(!(r.status===429 || r.status>=500)) throw new Error('HTTP '+r.status);
     }catch(e){ if(a===tries-1) throw e; }
+    finally{ clearTimeout(t); }
     await new Promise(s=>setTimeout(s, 400*(a+1)*(a+1)));   // 0.4s, 1.6s, 3.6s
   }
   throw new Error('wx retries exhausted');
@@ -1093,35 +1095,21 @@ const STATE = { games:[], live:false, loading:true, err:null, week:null, season:
 let MODE='live', TAB='games', LEAGUE='nfl', CONF='top25';   // one always-live board (no pre/live toggle)
 let WEEK=null, CURWEEK=null, SEASON_YR=2026;                 // NFL week selector (null = current/upcoming)
 
-let LOAD_TS = 0;
+let LOAD_WATCHDOG=null;
 function setLoading(on){
   STATE.loading = on;
   const ds = document.getElementById('dstat'), rb = document.getElementById('refreshBtn');
-  if(on){ LOAD_TS = Date.now(); ds.className='dstat load'; document.getElementById('dstatTxt').textContent='Loading live data…'; rb.classList.add('spin'); }
+  if(on){ ds.className='dstat load'; document.getElementById('dstatTxt').textContent='Loading live data…'; rb.classList.add('spin'); }
   else rb.classList.remove('spin');
+  // Safety net: never let the loading state (and banner) stick if a load stalls.
+  if(LOAD_WATCHDOG){ clearTimeout(LOAD_WATCHDOG); LOAD_WATCHDOG=null; }
+  if(on) LOAD_WATCHDOG=setTimeout(()=>{ STATE.loading=false; rb.classList.remove('spin'); updateLoadBanner(); setStatus(); }, 30000);
   updateLoadBanner();
 }
-// Still trickling in? A game missing its total line, or an outdoor game with no
-// forecast yet, means data hasn't fully arrived.
-function dataFilling(){
-  if(!STATE.games || !STATE.games.length) return false;
-  return STATE.games.some(g=>{
-    const noLine = g.marketTotal==null && g.espnTotal==null;
-    const noWx = g.roof==='open' && (!g.weather || g.weather.unknown);
-    return noLine || noWx;
-  });
-}
+// Banner tracks only ACTUAL loading of the current view — it goes up when a load
+// starts and comes down the moment that load finishes (success or failure).
 function updateLoadBanner(){
-  const el=document.getElementById('loadbanner'); if(!el) return;
-  const loading = !!STATE.loading;
-  const filling = !loading && STATE.live && (Date.now()-LOAD_TS < 90000) && dataFilling();
-  if(loading || filling){
-    el.hidden=false;
-    el.querySelector('.lb-title').textContent = loading ? 'Loading live data…' : 'Still loading…';
-    el.querySelector('.lb-sub').textContent = loading
-      ? 'Scores, lines and forecasts are coming in — one moment.'
-      : 'Some odds, scores or forecasts are still trickling in — hang tight.';
-  } else { el.hidden=true; }
+  const el=document.getElementById('loadbanner'); if(el) el.hidden = !STATE.loading;
 }
 function setStatus(){
   const ds=document.getElementById('dstat'), txt=document.getElementById('dstatTxt');
