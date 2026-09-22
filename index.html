@@ -79,12 +79,12 @@ header{position:sticky;top:0;z-index:50;background:rgba(10,14,23,.9);
 .confarrow{flex:0 0 auto;width:28px;height:30px;border-radius:8px;background:var(--panel2);border:1px solid var(--line);
   color:var(--mid);font-size:1rem;line-height:1;display:grid;place-items:center}
 .confarrow:active{transform:scale(.9)}
-.weekrow{display:flex;align-items:center;gap:.4rem;margin:.2rem 0 .8rem}
-.weekrow .wkarrow{flex:0 0 auto;width:30px;height:34px;border-radius:8px;background:var(--panel2);
-  border:1px solid var(--line);color:var(--mid);font-size:1.1rem;line-height:1;display:grid;place-items:center}
-.weekrow .wkarrow:active{transform:scale(.9)}
-.weekrow select{flex:1;background:var(--panel2);color:var(--txt);border:1px solid var(--line);
-  border-radius:8px;padding:.5rem .6rem;font-size:.85rem;font-weight:600;font-family:inherit;text-align:center}
+.wkpick{position:relative;display:inline-flex;align-items:center;gap:.25rem;cursor:pointer}
+.wkpick .wkcar{font-style:normal;color:var(--dim);font-size:.6rem;margin-left:.1rem}
+.wkpick select{position:absolute;inset:0;width:100%;height:100%;opacity:0;border:0;appearance:none;
+  -webkit-appearance:none;background:transparent;font-size:16px}
+.wkpick:active{border-color:var(--acc)}
+.wkpick.off{cursor:default}.wkpick.off .wkcar{display:none}
 .confbar{display:flex;gap:.4rem;overflow-x:auto;padding:.15rem 0;-webkit-overflow-scrolling:touch;scrollbar-width:none}
 .confbar::-webkit-scrollbar{display:none}
 .confpill{flex:0 0 auto;background:var(--panel2);border:1px solid var(--line);color:var(--mid);border-radius:20px;
@@ -193,6 +193,18 @@ main{padding:.4rem 1rem 3rem}
 .tr-rec{font-family:"Barlow Condensed";font-weight:700;font-size:1.05rem;color:var(--mid)}
 .tr-pct{font-family:"Barlow Condensed";font-weight:700;font-size:1.05rem;width:44px;text-align:right;color:var(--dim)}
 .tr-pct.good{color:var(--under)} .tr-pct.bad{color:var(--hot)}
+.trackrec{cursor:pointer}
+.tr-cap{display:flex;align-items:center;gap:.5rem}
+.tr-tap{margin-left:auto;font-size:.56rem;color:var(--dim);text-transform:none;letter-spacing:0}
+.tr-list{margin-top:.5rem;border-top:1px solid var(--line2);padding-top:.35rem}
+.tr-g{display:flex;align-items:center;gap:.5rem;padding:.3rem 0;font-size:.74rem;border-bottom:1px solid var(--line)}
+.tr-g:last-child{border-bottom:none}
+.tr-gm{flex:0 0 auto;width:18px;text-align:center;font-weight:800}
+.tr-gm.hit{color:var(--under)} .tr-gm.miss{color:var(--hot)} .tr-gm.push{color:var(--mid)}
+.tr-gt{flex:1;min-width:0;color:var(--txt);font-weight:600}
+.tr-gd{font-family:"Barlow Condensed";font-weight:700;color:var(--txt);font-size:.95rem}
+.tr-gd i{font-style:normal;color:var(--dim);font-size:.7rem;font-family:"Inter",sans-serif;font-weight:400}
+.tr-gw{flex:0 0 auto;width:74px;text-align:right;font-size:.6rem;color:var(--dim);text-transform:uppercase;letter-spacing:.03em}
 /* live under-o-meter (validated YPP trend) */
 .ltrend{margin:.7rem .9rem 0;background:#161d2e;border:1px solid var(--line);border-radius:9px;padding:.5rem .65rem}
 .ltrend.under{border-color:#1c5a4a;background:#0f2620}
@@ -379,7 +391,8 @@ main{padding:.4rem 1rem 3rem}
         </div>
       </div>
       <div class="hd-r">
-        <span class="wk">Wk <b id="wkNum">–</b> · <b id="wkSeason">–</b></span>
+        <label class="wk wkpick" id="wkChip">Wk <b id="wkNum">–</b> · <b id="wkSeason">–</b><i class="wkcar">▾</i>
+          <select id="weekSel" aria-label="Change week" onchange="setWeek(this.value)"></select></label>
         <button class="iconbtn" id="refreshBtn" title="Refresh" onclick="loadData()">⟳</button>
         <button class="iconbtn" title="Settings" onclick="openSettings()">⚙</button>
       </div>
@@ -404,11 +417,6 @@ main{padding:.4rem 1rem 3rem}
         <button class="confarrow" onclick="cycleConf(-1)" aria-label="Previous conference">‹</button>
         <div class="confbar" id="confPills"></div>
         <button class="confarrow" onclick="cycleConf(1)" aria-label="Next conference">›</button>
-      </div>
-      <div class="weekrow" id="weekrow">
-        <button class="wkarrow" onclick="stepWeek(-1)" aria-label="Previous week">‹</button>
-        <select id="weekSel" onchange="setWeek(this.value)"></select>
-        <button class="wkarrow" onclick="stepWeek(1)" aria-label="Next week">›</button>
       </div>
       <div class="strip">
         <div class="stat"><div class="n" id="sGames">–</div><div class="l">Games</div></div>
@@ -1358,19 +1366,19 @@ function setLeague(l){
   document.getElementById('lNFL').classList.toggle('on', l==='nfl');
   document.getElementById('lCFB').classList.toggle('on', l==='cfb');
   document.getElementById('confbar').style.display = l==='cfb' ? 'flex' : 'none';
-  document.getElementById('weekrow').style.display = l==='nfl' ? 'flex' : 'none';
   document.getElementById('sortSel').value = 'edge';
   renderConfBar();
   loadData();
 }
 // NFL week selector — default is the current/upcoming slate; step back for results.
 function renderWeekBar(){
-  const row=document.getElementById('weekrow'); if(!row) return;
-  row.style.display = LEAGUE==='nfl' ? 'flex' : 'none';
-  if(LEAGUE!=='nfl') return;
-  const sel=document.getElementById('weekSel'); const cur=CURWEEK||WEEK||1;
-  const max=Math.max(18, cur);
-  const sig=`${cur}:${WEEK||cur}`; if(sel.dataset.sig===sig) return; sel.dataset.sig=sig;   // don't rebuild every tick
+  const sel=document.getElementById('weekSel'), chip=document.getElementById('wkChip');
+  if(!sel||!chip) return;
+  const nfl = LEAGUE==='nfl';
+  chip.classList.toggle('off', !nfl); sel.disabled = !nfl;
+  if(!nfl) return;
+  const cur=CURWEEK||WEEK||1, max=Math.max(18,cur);
+  const sig=`${cur}:${WEEK||cur}`; if(sel.dataset.sig===sig) return; sel.dataset.sig=sig;
   let html='';
   for(let w=1; w<=max; w++){
     const tag = w===cur ? ' — this week' : w<cur ? ' — final' : '';
@@ -1379,7 +1387,6 @@ function renderWeekBar(){
   sel.innerHTML=html;
 }
 function setWeek(v){ const w=+v; if(w===WEEK) return; WEEK=w; loadData(); }
-function stepWeek(dir){ const cur=WEEK||CURWEEK||1; const w=Math.min(Math.max(cur+dir,1),Math.max(18,CURWEEK||18)); setWeek(w); }
 function setConf(id){ if(id===CONF) return; CONF=id; renderConfBar(); loadData(); }
 function cycleConf(dir){
   const i = CONFERENCES.findIndex(c=>c.id===CONF);
@@ -1635,10 +1642,18 @@ function gameCard(g){
 // kickoff-hour forecast), so we can grade that one signal against the final.
 function logSignal(g){
   const e=g.e, gid=g.id;
-  let rec = SIGLOG[gid] || {away:g.awayAb, home:g.homeAb, week:STATE.week};
-  if(e.lean==='under') rec.weather = {strong: e.penalty>=2.5, penalty:e.penalty};
-  if(e.isFinal && e.result && e.result.outcome){ rec.result = e.result.outcome; rec.line = e.result.line ?? rec.line; }
-  if(rec.weather) SIGLOG[gid] = rec;   // only keep games we flagged for weather
+  let rec = SIGLOG[gid] || {};
+  rec.away=g.awayAb; rec.home=g.homeAb; rec.week=STATE.week; rec.league=LEAGUE;
+  if(e.lean==='under'){
+    const c=e.comps||{};
+    const top=Object.entries({wind:c.wind||0, rain:c.precip||0, cold:c.cold||0, heat:c.heat||0})
+      .sort((a,b)=>b[1]-a[1])[0];
+    rec.weather={strong:e.penalty>=2.5, penalty:e.penalty, driver:(top&&top[1]>0)?top[0]:'—'};
+  }
+  if(e.isFinal && e.result && e.result.outcome){
+    rec.result=e.result.outcome; rec.line=e.result.line ?? rec.line; rec.pts=e.result.pts;
+  }
+  if(rec.weather) SIGLOG[gid]=rec;   // only keep games we flagged for weather
 }
 // Grade badge on a settled card: did the kickoff weather under lean hit?
 function gradeStrip(g){
@@ -1649,24 +1664,44 @@ function gradeStrip(g){
   const label = 'Weather under'+(e.penalty>=2.5?' (strong)':'');
   return `<div class="grades"><span class="gr-h">Our call</span><span class="gr ${mk}">${label} · ${sym}</span></div>`;
 }
-// Season track record for the kickoff weather under signal (all + strong).
-function trackRecord(){ const all=[0,0,0], strong=[0,0,0];
+// Graded weather-under signals for the week currently on screen (this league only).
+function weekSignals(){
+  const wk=STATE.week;
+  return Object.keys(SIGLOG).map(id=>Object.assign({id}, SIGLOG[id]))
+    .filter(r=>r.weather && r.result && r.week===wk && (!r.league || r.league===LEAGUE));
+}
+function trackRecord(){
+  const all=[0,0,0], strong=[0,0,0];
   const bump=(a,oc)=>{ a[oc==='under'?0:oc==='over'?1:2]++; };
-  for(const gid in SIGLOG){ const r=SIGLOG[gid]; if(!r.result||!r.weather) continue;
-    bump(all, r.result); if(r.weather.strong) bump(strong, r.result); }
+  weekSignals().forEach(r=>{ bump(all,r.result); if(r.weather.strong) bump(strong,r.result); });
   return {all, strong};
 }
+let TR_OPEN=false;
+function toggleTrack(){ TR_OPEN=!TR_OPEN; renderTrackRecord(); }
 function renderTrackRecord(){
   const el=document.getElementById('trackRec'); if(!el) return;
+  const games=weekSignals();
+  if(!games.length){ el.innerHTML=''; return; }
   const {all, strong}=trackRecord();
-  if(!(all[0]+all[1]+all[2])){ el.innerHTML=''; return; }
   const row=(label,a)=>{ const dec=a[0]+a[1]; if(!(dec+a[2])) return '';
     const pct=dec?Math.round(a[0]/dec*100):0;
     return `<div class="tr-row"><span class="tr-l">${label}</span>
       <span class="tr-rec">${a[0]}–${a[1]}${a[2]?' ('+a[2]+'P)':''}</span>
       <span class="tr-pct ${pct>=52?'good':'bad'}">${dec?pct+'%':'—'}</span></div>`; };
-  el.innerHTML = `<div class="trackrec"><div class="tr-cap">📋 Kickoff weather unders · did they hit?</div>
-    ${row('All weather unders', all)}${row('Strong only (≥2.5)', strong)}</div>`;
+  const list = TR_OPEN ? `<div class="tr-list">${games
+    .sort((x,y)=>(y.weather.penalty||0)-(x.weather.penalty||0))
+    .map(r=>{
+      const push=r.result==='push', ok=r.result==='under';
+      const cl=push?'push':ok?'hit':'miss', mk=push?'—':ok?'✓':'✗';
+      return `<div class="tr-g"><span class="tr-gm ${cl}">${mk}</span>
+        <span class="tr-gt">${r.away} @ ${r.home}</span>
+        <span class="tr-gd">${r.pts!=null?r.pts:'—'} <i>vs</i> ${r.line!=null?r.line:'—'}</span>
+        <span class="tr-gw">${r.weather.driver||''} −${(r.weather.penalty||0).toFixed(1)}</span></div>`;
+    }).join('')}</div>` : '';
+  el.innerHTML = `<div class="trackrec" onclick="toggleTrack()">
+    <div class="tr-cap">📋 Week ${STATE.week ?? '–'} · kickoff weather unders
+      <span class="tr-tap">${TR_OPEN?'tap to collapse ▲':'tap for games ▼'}</span></div>
+    ${row('All weather unders', all)}${row('Strong only (≥2.5)', strong)}${list}</div>`;
 }
 function toggleWhy(id,btn){
   const el=document.getElementById('why-'+id); el.classList.toggle('open');
