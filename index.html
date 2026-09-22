@@ -109,6 +109,10 @@ main{padding:.4rem 1rem 3rem}
 .stat .n{font-family:"Barlow Condensed";font-size:1.7rem;font-weight:700;line-height:1}
 .stat .n.u{color:var(--under)}.stat .n.w{color:var(--warn)}
 .stat .l{font-size:.6rem;color:var(--dim);text-transform:uppercase;letter-spacing:.08em;margin-top:.3rem}
+.stat.tap{cursor:pointer;transition:.15s}
+.stat.tap:active{transform:scale(.96)}
+.stat.on{background:var(--panel2);border-color:var(--acc);box-shadow:0 0 0 1px var(--acc) inset}
+.stat.on .l{color:var(--txt)}
 
 .sortrow{display:flex;align-items:center;justify-content:space-between;margin:.2rem 0 .7rem}
 .sortrow .h{font-size:.7rem;color:var(--dim);text-transform:uppercase;letter-spacing:.1em}
@@ -419,9 +423,9 @@ main{padding:.4rem 1rem 3rem}
         <button class="confarrow" onclick="cycleConf(1)" aria-label="Next conference">›</button>
       </div>
       <div class="strip">
-        <div class="stat"><div class="n" id="sGames">–</div><div class="l">Games</div></div>
-        <div class="stat"><div class="n u" id="sUnders">–</div><div class="l">Weather Unders</div></div>
-        <div class="stat"><div class="n w" id="sBig">–</div><div class="l">Strong Edges</div></div>
+        <div class="stat" id="fAll" onclick="setFilter('all')"><div class="n" id="sGames">–</div><div class="l">Games</div></div>
+        <div class="stat tap" id="fUnders" onclick="setFilter('unders')"><div class="n u" id="sUnders">–</div><div class="l">Weather Unders</div></div>
+        <div class="stat tap" id="fStrong" onclick="setFilter('strong')"><div class="n w" id="sBig">–</div><div class="l">Strong Edges</div></div>
       </div>
       <div class="sortrow">
         <span class="h">Most weather-impacted first</span>
@@ -759,10 +763,10 @@ const CFB_URL  = 'https://site.api.espn.com/apis/site/v2/sports/football/college
 const GEO_URL  = 'https://geocoding-api.open-meteo.com/v1/search';
 // ESPN conference "groups" ids; top25 = filter to AP-ranked games client-side
 const CONFERENCES = [
-  {id:'top25',name:'AP Top 25'}, {id:'8',name:'SEC'}, {id:'5',name:'Big Ten'},
+  {id:'80',name:'All FBS'}, {id:'top25',name:'AP Top 25'}, {id:'8',name:'SEC'}, {id:'5',name:'Big Ten'},
   {id:'4',name:'Big 12'}, {id:'1',name:'ACC'}, {id:'151',name:'American'},
   {id:'17',name:'Mtn West'}, {id:'37',name:'Sun Belt'}, {id:'15',name:'MAC'},
-  {id:'12',name:'C-USA'}, {id:'18',name:'Independent'}, {id:'9',name:'Pac-12'}, {id:'80',name:'All FBS'}
+  {id:'12',name:'C-USA'}, {id:'18',name:'Independent'}, {id:'9',name:'Pac-12'}
 ];
 
 function classifyPrecip(code, mm){
@@ -1101,7 +1105,8 @@ function sampleGames(){
 
 /* ---------- STATE ---------- */
 const STATE = { games:[], live:false, loading:true, err:null, week:null, season:null };
-let MODE='live', TAB='games', LEAGUE='nfl', CONF='top25';   // one always-live board (no pre/live toggle)
+let MODE='live', TAB='games', LEAGUE='nfl', CONF='80';
+let FILTER='all';   // stat-tile filter: all | unders | strong   // one always-live board (no pre/live toggle)
 let WEEK=null, CURWEEK=null, SEASON_YR=2026;                 // NFL week selector (null = current/upcoming)
 
 let LOAD_WATCHDOG=null, FIRST_LOAD=true;
@@ -1140,12 +1145,24 @@ async function loadData(){
   try{
     let games;
     if(LEAGUE==='cfb'){
-      const url = CFB_URL + (CONF==='top25' ? '?groups=80&limit=200' : `?groups=${CONF}&limit=200`);
-      const d = await fetchJSON(url, 10000);
-      games = buildGamesFromCFB(d);
-      if(CONF==='top25') games = games.filter(g=>g.awayRank || g.homeRank);
+      const base = `${CFB_URL}?groups=${CONF==='top25'?'80':CONF}&limit=200`;
+      const rank = gs => CONF==='top25' ? gs.filter(g=>g.awayRank || g.homeRank) : gs;
+      const explicit = WEEK!=null;
+      let d = await fetchJSON(base + (explicit?`&seasontype=2&week=${WEEK}&dates=${SEASON_YR}`:''), 10000);
+      games = rank(buildGamesFromCFB(d));
+      if(!explicit){
+        SEASON_YR = (d.season && d.season.year) || SEASON_YR;
+        const done = games.length && games.every(g=>g.live && g.live.state==='post');
+        if(done){
+          const nextWk = (d.week && d.week.number || 1) + 1;
+          try{ const dn = await fetchJSON(`${base}&seasontype=2&week=${nextWk}&dates=${SEASON_YR}`, 10000);
+            const gn = rank(buildGamesFromCFB(dn)); if(gn.length){ d=dn; games=gn; } }catch(e){}
+        }
+        CURWEEK = d.week && d.week.number; WEEK = CURWEEK;
+      }
       if(!games.length) throw new Error('no games');
       STATE.week = d.week && d.week.number; STATE.season = d.season && d.season.year;
+      SEASON_YR = STATE.season || SEASON_YR;
       await attachGeo(games);
       await attachWeather(games);
     } else {
@@ -1262,10 +1279,11 @@ function moveLog(g){
     <div class="forecast">Recorded on this device while the app was open — not the full market history.</div>`;
 }
 
-const isPastWeek = () => LEAGUE==='nfl' && WEEK && CURWEEK && WEEK<CURWEEK;
+const isPastWeek = () => WEEK && CURWEEK && WEEK<CURWEEK;
 async function refreshLiveData(){
   if(isPastWeek()) return;                    // a finished week never changes — nothing to refresh
-  const url = LEAGUE==='cfb' ? (CFB_URL + (CONF==='top25'?'?groups=80&limit=200':`?groups=${CONF}&limit=200`))
+  const wkq = WEEK ? `&seasontype=2&week=${WEEK}&dates=${SEASON_YR}` : '';
+  const url = LEAGUE==='cfb' ? `${CFB_URL}?groups=${CONF==='top25'?'80':CONF}&limit=200${wkq}`
     : ESPN_URL + (WEEK ? `?seasontype=2&week=${WEEK}&dates=${SEASON_YR}` : '');
   const d = await fetchJSON(url, 9000);
   const fresh = LEAGUE==='cfb' ? buildGamesFromCFB(d) : buildGamesFromESPN(d);
@@ -1367,6 +1385,7 @@ function setLeague(l){
   document.getElementById('lCFB').classList.toggle('on', l==='cfb');
   document.getElementById('confbar').style.display = l==='cfb' ? 'flex' : 'none';
   document.getElementById('sortSel').value = 'edge';
+  WEEK=null; CURWEEK=null; FILTER='all';        // each league has its own week numbering
   renderConfBar();
   loadData();
 }
@@ -1374,11 +1393,9 @@ function setLeague(l){
 function renderWeekBar(){
   const sel=document.getElementById('weekSel'), chip=document.getElementById('wkChip');
   if(!sel||!chip) return;
-  const nfl = LEAGUE==='nfl';
-  chip.classList.toggle('off', !nfl); sel.disabled = !nfl;
-  if(!nfl) return;
-  const cur=CURWEEK||WEEK||1, max=Math.max(18,cur);
-  const sig=`${cur}:${WEEK||cur}`; if(sel.dataset.sig===sig) return; sel.dataset.sig=sig;
+  chip.classList.remove('off'); sel.disabled = false;
+  const cur=CURWEEK||WEEK||1, max=Math.max(LEAGUE==='cfb'?16:18, cur);
+  const sig=`${LEAGUE}:${cur}:${WEEK||cur}`; if(sel.dataset.sig===sig) return; sel.dataset.sig=sig;
   let html='';
   for(let w=1; w<=max; w++){
     const tag = w===cur ? ' — this week' : w<cur ? ' — final' : '';
@@ -1677,6 +1694,7 @@ function trackRecord(){
   return {all, strong};
 }
 let TR_OPEN=false;
+function setFilter(f){ FILTER = (FILTER===f) ? 'all' : f; renderGames(); }
 function toggleTrack(){ TR_OPEN=!TR_OPEN; renderTrackRecord(); }
 function renderTrackRecord(){
   const el=document.getElementById('trackRec'); if(!el) return;
@@ -1722,12 +1740,24 @@ function renderGames(){
     return b.e.penalty-a.e.penalty;
   });
   list.forEach(logSignal); saveSiglog(); renderTrackRecord();
+  // Counts always reflect the full slate; the tiles filter what's listed below.
+  const unders=list.filter(g=>g.e.lean==='under'), strong=list.filter(g=>g.e.penalty>=2.5);
+  const shown = FILTER==='unders' ? unders : FILTER==='strong' ? strong : list;
+  const empty = FILTER==='all'
+    ? 'No games on the board right now.<br>Check back closer to game day.'
+    : 'No games match that filter this week.<br>Tap the tile again to clear it.';
   document.getElementById('gameList').innerHTML =
-    list.map(gameCard).join('') || '<div class="empty">No games on the board right now.<br>Check back closer to game day.</div>';
-  const unders=list.filter(g=>g.e.lean==='under');
+    shown.map(gameCard).join('') || `<div class="empty">${empty}</div>`;
   document.getElementById('sGames').textContent=list.length;
   document.getElementById('sUnders').textContent=unders.length;
-  document.getElementById('sBig').textContent=list.filter(g=>g.e.penalty>=2.5).length;
+  document.getElementById('sBig').textContent=strong.length;
+  document.getElementById('fAll').classList.toggle('on', FILTER==='all');
+  document.getElementById('fUnders').classList.toggle('on', FILTER==='unders');
+  document.getElementById('fStrong').classList.toggle('on', FILTER==='strong');
+  const sr=document.querySelector('.sortrow .h');
+  if(sr) sr.textContent = FILTER==='unders' ? `Showing ${unders.length} weather unders · tap tile to clear`
+    : FILTER==='strong' ? `Showing ${strong.length} strong edges · tap tile to clear`
+    : 'Most weather-impacted first';
 }
 function ring(pct,color){
   const r=20,c=2*Math.PI*r,off=c*(1-pct/100);
