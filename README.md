@@ -65,7 +65,9 @@ Toggle **🔴 Live** and the board updates itself:
 ## Data (free, keyless for the basics)
 
 - **Schedule, venues, scores, totals** — ESPN public scoreboards.
-- **Weather** — Open-Meteo, per venue at kickoff.
+- **Weather** — NOAA National Blend of Models (via Open-Meteo) for US venues, falling back to
+  Open-Meteo's global blend. Wind/temp at kickoff; precipitation across the game window, with the
+  rain penalty scaled by forecast probability.
 - **Optional exact book lines + live in-play totals** — add a [The Odds API](https://the-odds-api.com)
   key under ⚙ Settings (stored only in your browser).
 

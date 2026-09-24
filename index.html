@@ -506,6 +506,10 @@ main{padding:.4rem 1rem 3rem}
         <p>Rain is the single strongest signal in the data (~56% unders over 15 yrs, 62% recently).
           <b>Snow is different:</b> those totals are set low to begin with and historically go over,
           so the model treats snow as neutral rather than an under.</p>
+        <p style="margin-top:.5rem">Forecasts are uncertain, so the rain penalty is <b>scaled by the chance
+          of rain</b>: a 60% chance of moderate rain counts as 60% of the full penalty. As kickoff approaches
+          and the forecast firms up, it converges on the full calibrated value. Below a 40% chance, we treat
+          the game as dry.</p>
         <table class="mtable">
           <tr><th>Intensity</th><th>Rain</th><th>Snow</th></tr>
           <tr><td><b>Light</b></td><td>0.8</td><td>0 <span style="color:var(--dim)">·neutral</span></td></tr>
@@ -596,8 +600,10 @@ main{padding:.4rem 1rem 3rem}
         <ul>
           <li><b>Schedule, venues &amp; market totals</b> — ESPN's public NFL scoreboard
             (real games, kickoff times, indoor/outdoor flags, live scores and the current over/under).</li>
-          <li><b>Weather</b> — Open-Meteo forecast keyed to each stadium's coordinates and matched
-            to the kickoff hour (temperature, sustained wind, gusts, precipitation).</li>
+          <li><b>Weather</b> — for US venues, NOAA's <b>National Blend of Models</b> (the backbone of
+            official National Weather Service forecasts) via Open-Meteo, keyed to each stadium. Wind and
+            temperature are read at the kickoff hour; precipitation looks across the whole game window and
+            uses the forecast's <b>probability</b>, since days out a single hour's rainfall amount is noisy.</li>
           <li><b>Live box score</b> — ESPN's game summary feed for in-progress games (team yards,
             plays and third downs) powers the live YPP trend meter.</li>
         </ul>
@@ -694,7 +700,7 @@ function computeEdge(game){
   const chillApplied = active && wx.tempF!=null && (wx.tempF - feelsF) >= 1;
   const comps = !active ? {wind:0,precip:0,cold:0,heat:0} : {
     wind:   windPenalty(wx.windMph),
-    precip: precipPenalty(wx.precipType, wx.precipIntensity),
+    precip: +(precipPenalty(wx.precipType, wx.precipIntensity) * (wx.precipChance ?? 1)).toFixed(2),
     cold:   coldPenalty(feelsF),
     heat:   heatPenalty(wx.tempF)
   };
@@ -909,38 +915,68 @@ async function pool(items, n, fn){ let i=0;
   await Promise.all(Array(Math.min(n, items.length)).fill(0).map(async()=>{
     while(i<items.length){ const idx=i++; await fn(items[idx]); } })); }
 
+// Weather for a game from an hourly forecast. Wind/temp are read at the kickoff
+// hour (validated by the game-window backtest). Precipitation looks across the
+// whole game window (kickoff → +3h) and uses the forecast's PROBABILITY: days
+// out, a model's single-hour mm is noisy and often 0 even at 60-80% odds.
+function forecastWx(H, bi){
+  const at=(a,i)=> (a && a[i]!=null) ? +a[i] : null;
+  const idx=[bi,bi+1,bi+2,bi+3].filter(i=>i<(H.time||[]).length);
+  const mms=idx.map(i=>at(H.precipitation,i)||0);
+  const codes=idx.map(i=>at(H.weather_code,i)).filter(c=>c!=null);
+  const probs=idx.map(i=>at(H.precipitation_probability,i)).filter(p=>p!=null);
+  const SNOW=[71,73,75,77,85,86], WET=[51,53,55,56,57,61,63,65,66,67,80,81,82,95,96,99];
+  const peak=Math.max(0,...mms), maxProb=probs.length?Math.max(...probs):null;
+  const anySnow=codes.some(c=>SNOW.includes(c));
+  const anyWet=anySnow || codes.some(c=>WET.includes(c)) || mms.some(m=>m>0.1);
+  const chance = maxProb!=null ? maxProb/100 : (anyWet?1:0);
+  let type='none', intensity='none';
+  if(chance>=0.4 && (anyWet || chance>=0.6)){
+    type = anySnow ? 'snow' : 'rain';
+    intensity = type==='snow' ? (peak>2?'heavy':peak>0.6?'moderate':'light')
+                              : (peak>4?'heavy':peak>1?'moderate':'light');
+  }
+  const code0=at(H.weather_code,bi), wind=at(H.wind_speed_10m,bi);
+  return {
+    tempF: Math.round(at(H.temperature_2m,bi)),
+    windMph: Math.round(wind),
+    gust: Math.round(at(H.wind_gusts_10m,bi) ?? wind),
+    precipType:type, precipIntensity:intensity,
+    precipChance: type==='none' ? 0 : chance,
+    precipProb: maxProb ?? (anyWet?100:0),
+    humidity: at(H.relative_humidity_2m,bi) ?? 0,
+    sky: skyText(code0)
+  };
+}
+
 async function attachWeather(games){
   const pastDays = isPastWeek() ? 16 : 3;          // light for the live slate; deeper only for grading old weeks
   await pool(games, 4, async g=>{
     if(g.roof!=='open' || g.lat==null){ g.weather = {indoorNeutral:true}; return; }
     const ck = g.id+'@'+String(g.kickISO||'').slice(0,13);
     try{
-      const u = `https://api.open-meteo.com/v1/forecast?latitude=${g.lat}&longitude=${g.lon}`
+      const base = `https://api.open-meteo.com/v1/forecast?latitude=${g.lat}&longitude=${g.lon}`
         + `&hourly=temperature_2m,precipitation,precipitation_probability,weather_code,`
         + `wind_speed_10m,wind_gusts_10m,relative_humidity_2m`
         + `&temperature_unit=fahrenheit&wind_speed_unit=mph&timezone=UTC&past_days=${pastDays}&forecast_days=10`;
-      const d = await wxFetch(u);
-      const times = d.hourly.time, target = new Date(g.kickISO).getTime();
-      let bi=0, bd=Infinity;
-      for(let i=0;i<times.length;i++){
-        const t = new Date(times[i]+(times[i].endsWith('Z')?'':'Z')).getTime();
-        const df = Math.abs(t-target); if(df<bd){bd=df;bi=i;}
+      const target = new Date(g.kickISO).getTime();
+      // nearest hour to kickoff, but only if the forecast actually reaches it
+      const nearest = H => { let bi=-1, bd=Infinity;
+        (H.time||[]).forEach((t,i)=>{ const df=Math.abs(new Date(t+(t.endsWith('Z')?'':'Z')).getTime()-target);
+          if(df<bd){ bd=df; bi=i; } });
+        return bd<=90*60e3 ? bi : -1; };
+      // US venues: NOAA's National Blend of Models (the basis of official NWS
+      // forecasts). Falls back to Open-Meteo's default blend outside its coverage.
+      let d = await wxFetch(base+'&models=ncep_nbm_conus'), H=d.hourly||{}, bi=nearest(H), src='NOAA NBM';
+      if(bi<0 || H.wind_speed_10m?.[bi]==null || H.precipitation?.[bi]==null){
+        d = await wxFetch(base); H=d.hourly||{}; bi=nearest(H); src='global blend';
       }
-      const code = d.hourly.weather_code[bi], mm = d.hourly.precipitation[bi]||0;
-      const p = classifyPrecip(code, mm);
-      g.weather = {
-        tempF: Math.round(d.hourly.temperature_2m[bi]),
-        windMph: Math.round(d.hourly.wind_speed_10m[bi]),
-        gust: Math.round(d.hourly.wind_gusts_10m[bi]),
-        precipType: p.type, precipIntensity: p.intensity,
-        precipProb: d.hourly.precipitation_probability[bi] ?? 0,
-        humidity: d.hourly.relative_humidity_2m[bi] ?? 0,
-        sky: skyText(code)
-      };
+      if(bi<0) throw new Error('kickoff outside forecast range');
+      g.weather = Object.assign(forecastWx(H, bi), {src});
       WXCACHE[ck] = {w:g.weather, t:Date.now()};          // remember a good forecast
     }catch(e){
-      const c = WXCACHE[ck];
-      g.weather = c ? c.w : {unknown:true, sky:'Forecast unavailable'};   // survive a transient rate-limit
+      const c = WXCACHE[ck];                               // fall back only to a FRESH forecast
+      g.weather = (c && Date.now()-c.t < 6*3600e3) ? c.w : {unknown:true, sky:'Forecast unavailable'};
     }
   });
   saveWx();
@@ -1448,8 +1484,9 @@ function wxChips(g){
     e.chillApplied ? `${w.tempF}° · feels ${e.feelsF}°` : `${w.tempF}°F`);
   else if(w.tempF>=85) out += chip('hot', e.comps.heat>0,'🔥',`${w.tempF}°F`);
   else out += chip('',false,'🌡️',`${w.tempF}°F`);
-  if(w.precipType==='rain') out += chip('rain', e.comps.precip>0,'🌧️',`${w.precipIntensity} rain`);
-  else if(w.precipType==='snow') out += chip('snow', e.comps.precip>0,'🌨️',`${w.precipIntensity} snow`);
+  const odds = (w.precipChance!=null && w.precipChance<1) ? ` · ${Math.round(w.precipChance*100)}%` : '';
+  if(w.precipType==='rain') out += chip('rain', e.comps.precip>0,'🌧️',`${w.precipIntensity} rain${odds}`);
+  else if(w.precipType==='snow') out += chip('snow', e.comps.precip>0,'🌨️',`${w.precipIntensity} snow${odds}`);
   return out;
 }
 function compRow(icon,name,detail,val){
@@ -1499,7 +1536,7 @@ function whyHTML(g){
   return `<div class="why" id="why-${g.id}"><h5>Why — weather breakdown</h5>
     ${compRow('🌬️','Wind',`${w.windMph} mph sustained`,e.comps.wind)}
     ${compRow(w.precipType==='snow'?'🌨️':'🌧️','Precip',
-        w.precipType==='none'?'none':`${w.precipIntensity} ${w.precipType}`,e.comps.precip)}
+        w.precipType==='none'?'none':`${w.precipIntensity} ${w.precipType}${(w.precipChance!=null&&w.precipChance<1)?` · ${Math.round(w.precipChance*100)}% chance`:''}`,e.comps.precip)}
     ${compRow('❄️','Cold',
         e.chillApplied ? `feels ${e.feelsF}°F · wind chill from ${w.tempF}°`
                        : (e.feelsF<32?`${w.tempF}°F`:'above 32°F'), e.comps.cold)}
@@ -1507,7 +1544,7 @@ function whyHTML(g){
     <div class="wsum">
       <span>Market <b style="color:var(--dim)">${e.hasLine?e.market:'—'}</b> − Penalty <b style="color:var(--under)">${e.penalty}</b></span>
       <b class="cond">= ${e.hasLine?e.adjusted:'—'}</b></div>
-    <div class="forecast">📡 ${w.sky} · ${w.precipProb}% precip · ${w.humidity}% humidity</div>
+    <div class="forecast">📡 ${w.sky} · ${w.precipProb}% chance of precip during the game · ${w.humidity}% humidity${w.src?` · ${w.src}`:''}</div>
     ${ladder}
     ${moves}</div>`;
 }
