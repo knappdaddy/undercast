@@ -1,0 +1,12 @@
+name: Weather Compare
+on:
+  workflow_dispatch:
+jobs:
+  cmp:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - run: node tools/wx-compare.mjs | tee /tmp/out.txt; { echo '```'; cat /tmp/out.txt; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
