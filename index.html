@@ -1249,6 +1249,7 @@ async function loadData(){
 
 /* ---------- LIVE: score, total-over-time, ~1-min auto-refresh ---------- */
 let LIVE_TIMER=null, FRESH_TIMER=null, REFRESHING=false, LAST_TICK=0, LAST_ODDS=0, LAST_STATS=0;
+const LIVE_CARRY = ['ypp','plays','yards','thirdConv','thirdAtt','thirdRate','qbChange','wxNow'];
 
 // signal log — records which signals fired on each game so we can grade them
 // against the final over/under result (our track record). Persists in the browser.
@@ -1338,6 +1339,9 @@ async function refreshLiveData(){
   const byId={}; fresh.forEach(f=>byId[f.id]=f);
   const hasOdds = oddsEnabled();
   STATE.games.forEach(g=>{ const f=byId[g.id]; if(!f) return;   // scores always from ESPN; keep weather/venue
+    // Box-score stats + live weather are fetched on a slower cadence than scores —
+    // carry them across score ticks so the trend strip doesn't blink out between refreshes.
+    if(g.live && f.live) LIVE_CARRY.forEach(k=>{ if(g.live[k]!==undefined && f.live[k]===undefined) f.live[k]=g.live[k]; });
     g.live=f.live;
     if(f.espnTotal!=null) g.espnTotal=f.espnTotal;   // keep the closing line current for grading finals
     // Only take ESPN's consensus total when there's no book feed for this game —
