@@ -188,6 +188,15 @@ main{padding:.4rem 1rem 3rem}
 .grades .gr.hit{background:var(--under-d);color:var(--under)}
 .grades .gr.miss{background:#2a1512;color:var(--hot)}
 .grades .gr.push{background:var(--panel2);color:var(--mid)}
+.grades .gr.lock{background:#132a24;color:var(--txt);border:1px solid #1c5a4a}
+.betbtn{margin-left:auto;font:600 .62rem Inter,sans-serif;padding:.22rem .55rem;border-radius:6px;cursor:pointer;
+  background:transparent;color:var(--under);border:1px solid #1c5a4a}
+.betbtn.on{color:var(--dim);border-color:var(--line)}
+.tr-sub{font-size:.58rem;color:var(--dim);text-transform:uppercase;letter-spacing:.05em;margin:.55rem 0 .15rem}
+.tr-sub + .tr-row{border-top:none}
+.tr-u{font-family:"Barlow Condensed";font-weight:700;font-size:.95rem;width:46px;text-align:right}
+.tr-u.good{color:var(--under)} .tr-u.bad{color:var(--hot)}
+.tr-note{font-size:.62rem;color:var(--dim);margin-top:.4rem;line-height:1.45}
 /* season track-record panel */
 .trackrec{background:var(--panel);border:1px solid var(--line);border-radius:var(--r);padding:.7rem .85rem;margin-bottom:.9rem}
 .tr-cap{font-size:.62rem;color:var(--dim);text-transform:uppercase;letter-spacing:.06em;margin-bottom:.5rem}
@@ -1613,26 +1622,34 @@ function liveWxTrend(g){
     <span class="wp ${precip!=='dry'?'wet':''}">${precip}</span>
     ${now.tempF!=null?`<span class="wt">${now.tempF}°</span>`:''}</div>`;
 }
-function liveTrendStrip(g){
-  if(MODE!=='live') return '';
+// The live verdict the trend box shows. Locked calls use the same function, so the
+// call we grade is exactly what was on screen.
+function liveVerdict(g){
   const s = liveUnderSignal(g);           // YPP-based (may be null)
   const wx = liveWx(g);
   const wxNasty = !!(wx && wx.nasty);
-  if(!s && !wxNasty && !(g.live && g.live.qbChange)) return '';
-
   const qb = !!(g.live && g.live.qbChange);   // backup QB in, competitive game
+  if(!s && !wxNasty && !qb) return null;
   let side = s ? s.side : 'none';
   let strong = s ? s.strong : false;
   let driver = '';
   if(side !== 'over' && (wxNasty || qb)){     // weather / QB confirm or, absent a YPP read, drive the under
     if(side !== 'under'){ side='under'; driver = qb ? 'backup QB' : 'live weather'; }
   }
+  return {s, wx, wxNasty, qb, side, strong, driver};
+}
+function liveTrendStrip(g){
+  if(MODE!=='live') return '';
+  const v = liveVerdict(g); if(!v) return '';
+  const {s, wx, wxNasty, qb, side, strong, driver} = v;
   const verdict = side==='under' ? `▼ ${strong?'STRONG UNDER':'UNDER'}` : side==='over' ? '▲ OVER' : '— even';
   const cls = side==='under' ? (strong?'under strong':'under') : side==='over' ? 'over' : 'even';
   const extras = (wxNasty?' · +wx':'') + (qb?' · +QB':'');
+  const rec = callsStore()[g.id], locked = !!(rec && rec.call);
   const note = side==='over' ? 'info only'
-    : driver ? driver
-    : (s ? s.confLabel + (strong?' · high':' · building') + extras : (qb?'backup QB':'live weather'));
+    : locked ? `🔒 called at ${rec.call.cp.toLowerCase()}`
+    : (driver ? driver : (s ? s.confLabel + (strong?' · high':' · building') + extras : (qb?'backup QB':'live weather')))
+      + (side==='under' && !checkpointOf(g.live) && (g.live.period||0)<=2 ? ' · locks at half' : '');
 
   let chips = '';
   if(s){ const yppLow=s.ypp<5.0, yppHigh=s.ypp>6.5;
@@ -1701,6 +1718,7 @@ function gameCard(g){
     </div>
     <div class="edgebar"><i style="width:${barPct}%"></i></div>
     ${liveTrendStrip(g)}
+    ${liveCallStrip(g)}
     ${liveWxTrend(g)}
     ${gradeStrip(g)}
     ${totalTrend(g)}
@@ -1735,6 +1753,89 @@ function gradeStrip(g){
   const label = 'Weather under'+(e.penalty>=2.5?' (strong)':'');
   return `<div class="grades"><span class="gr-h">Our call</span><span class="gr ${mk}">${label} · ${sym}</span></div>`;
 }
+// ---- Live calls: hold the live signal to account ----
+// One call per game, LOCKED the first time the under shows at a checkpoint the
+// signal was tested at (halftime, end of Q3), together with the live book total
+// at that moment. It is graded on that line and never changes afterwards.
+// "I bet this" separately logs the line you actually took.
+let LIVECALLS = {}; try{ LIVECALLS = JSON.parse(localStorage.getItem('uc_livecalls')||'{}'); }catch(e){ LIVECALLS = {}; }
+const DEMOCALLS = {};                                   // sample demo: shown, never saved or counted
+const callsStore = () => STATE.live ? LIVECALLS : DEMOCALLS;
+function saveLiveCalls(){ if(!STATE.live) return; try{ localStorage.setItem('uc_livecalls', JSON.stringify(LIVECALLS)); }catch(e){} }
+const clockSecs = c => { const m=String(c||'').match(/(\d+):(\d+)/); return m ? +m[1]*60 + +m[2] : null; };
+function checkpointOf(L){
+  if(!L || L.state!=='in') return null;
+  const p=L.period||0, s=clockSecs(L.clock);
+  if((p===2 && s===0) || (p===3 && s!=null && s>=450)) return 'Half';       // halftime or early Q3
+  if((p===3 && s===0) || (p===4 && s!=null && s>=600)) return 'End Q3';     // end of Q3 or early Q4
+  return null;
+}
+function liveLineOf(g){
+  if(!STATE.live) return {line:g.liveTotal ?? null, book:'demo'};
+  return (oddsEnabled() && g.books && g.liveTotal!=null) ? {line:+g.liveTotal, book:g.book} : {line:null, book:null};
+}
+const ouOf = (pts, line) => pts==null || line==null ? null : pts<line ? 'under' : pts>line ? 'over' : 'push';
+function trackLiveCall(g){
+  const store=callsStore(), L=g.live||{};
+  let rec=store[g.id], changed=false;
+  if(L.state==='in' && !(rec && rec.call)){
+    const cp=checkpointOf(L), v=cp && liveVerdict(g);
+    if(v && v.side==='under'){
+      const {line, book}=liveLineOf(g);
+      rec = store[g.id] = rec || {away:g.awayAb, home:g.homeAb, week:STATE.week, season:SEASON_YR, league:LEAGUE};
+      rec.call = {cp, ts:Date.now(), line, book, score:(+L.homeScore||0)+(+L.awayScore||0),
+        ypp:v.s?v.s.ypp:null, third:v.s?v.s.third:null, strong:!!v.strong,
+        drivers:[v.s&&v.s.side==='under'?'YPP':null, v.qb?'QB':null, v.wxNasty?'wx':null].filter(Boolean)};
+      changed=true;
+    }
+  }
+  if(rec && L.state==='post' && rec.pts==null){ rec.pts=(+L.homeScore||0)+(+L.awayScore||0); changed=true; }
+  if(changed) saveLiveCalls();
+}
+function betLive(id, ev){
+  if(ev) ev.stopPropagation();
+  const g=STATE.games.find(x=>x.id===id); if(!g) return;
+  const store=callsStore();
+  const rec = store[id] || (store[id]={away:g.awayAb, home:g.homeAb, week:STATE.week, season:SEASON_YR, league:LEAGUE});
+  if(rec.bet){ if(confirm(`Remove your logged bet (under ${rec.bet.line})?`)) delete rec.bet; }
+  else{
+    const def = (rec.call && rec.call.line!=null) ? rec.call.line : (g.liveTotal ?? g.marketTotal ?? '');
+    const v = prompt('What under line did you take?', def); if(v==null) return;
+    const line = parseFloat(v); if(isNaN(line)) return;
+    const L=g.live||{};
+    rec.bet = {line, ts:Date.now(), period:L.period, clock:L.clock, early:!rec.call};
+  }
+  if(!rec.call && !rec.bet) delete store[id];
+  saveLiveCalls(); renderAll();
+}
+// Card strip: the locked call + your bet, live and once graded.
+function liveCallStrip(g){
+  const rec=callsStore()[g.id], L=g.live||{};
+  const v = L.state==='in' ? liveVerdict(g) : null;
+  const canBet = L.state==='in' && ((rec && rec.call) || (v && v.side==='under') || (rec && rec.bet));
+  if(!rec && !canBet) return '';
+  const fin = L.state==='post' && rec && rec.pts!=null;
+  const grade = oc => oc==='under' ? ['hit','✓'] : oc==='over' ? ['miss','✗'] : oc==='push' ? ['push','—'] : ['','…'];
+  let out='';
+  if(rec && rec.call){ const c=rec.call;
+    if(c.line==null) out += `<span class="gr push">🔒 Live under at ${c.cp.toLowerCase()} · no live line (needs odds key) · ungraded</span>`;
+    else{ const [cl,mk] = fin ? grade(ouOf(rec.pts,c.line)) : ['','🔒'];
+      out += `<span class="gr ${cl||'lock'}">${mk} Live call · under ${c.line} at ${c.cp.toLowerCase()}${fin?` · final ${rec.pts}`:''}</span>`; } }
+  if(rec && rec.bet){ const b=rec.bet; const [cl,mk] = fin ? grade(ouOf(rec.pts,b.line)) : ['',''];
+    out += `<span class="gr ${cl||'lock'}">${mk?mk+' ':''}Your bet · u${b.line}${b.early?' (before the call)':''}</span>`; }
+  if(canBet) out += `<button class="betbtn ${rec&&rec.bet?'on':''}" onclick="betLive('${g.id}',event)">${rec&&rec.bet?'Undo bet':'I bet the under'}</button>`;
+  return `<div class="grades"><span class="gr-h">Live</span>${out}</div>`;
+}
+function liveRecord(filter){
+  const calls=[0,0,0], bets=[0,0,0]; let callU=0, betU=0;
+  const idx=oc=>oc==='under'?0:oc==='over'?1:2, units=oc=>oc==='under'?100/110:oc==='over'?-1:0;
+  Object.values(LIVECALLS).filter(r=>r.pts!=null && (!r.league||r.league===LEAGUE) && filter(r)).forEach(r=>{
+    const c=r.call && ouOf(r.pts, r.call.line); if(c){ calls[idx(c)]++; callU+=units(c); }
+    const b=r.bet && ouOf(r.pts, r.bet.line); if(b){ bets[idx(b)]++; betU+=units(b); }
+  });
+  return {calls, bets, callU, betU};
+}
+
 // Graded weather-under signals for the week currently on screen (this league only).
 function weekSignals(){
   const wk=STATE.week;
@@ -1753,13 +1854,20 @@ function toggleTrack(){ TR_OPEN=!TR_OPEN; renderTrackRecord(); }
 function renderTrackRecord(){
   const el=document.getElementById('trackRec'); if(!el) return;
   const games=weekSignals();
-  if(!games.length){ el.innerHTML=''; return; }
+  const wk=STATE.week;
+  const lw=liveRecord(r=>r.week===wk && r.season===SEASON_YR), ls=liveRecord(r=>r.season===SEASON_YR);
+  const sum=a=>a[0]+a[1]+a[2];
+  const hasLive = sum(ls.calls) || sum(ls.bets);
+  if(!games.length && !hasLive){ el.innerHTML=''; return; }
   const {all, strong}=trackRecord();
-  const row=(label,a)=>{ const dec=a[0]+a[1]; if(!(dec+a[2])) return '';
+  const row=(label,a,u)=>{ const dec=a[0]+a[1]; if(!(dec+a[2])) return '';
     const pct=dec?Math.round(a[0]/dec*100):0;
     return `<div class="tr-row"><span class="tr-l">${label}</span>
       <span class="tr-rec">${a[0]}–${a[1]}${a[2]?' ('+a[2]+'P)':''}</span>
-      <span class="tr-pct ${pct>=52?'good':'bad'}">${dec?pct+'%':'—'}</span></div>`; };
+      ${u!=null?`<span class="tr-u ${u>=0?'good':'bad'}">${u>=0?'+':''}${u.toFixed(1)}u</span>`:''}
+      <span class="tr-pct ${pct>=53?'good':'bad'}">${dec?pct+'%':'—'}</span></div>`; };
+  const weekLive = TR_OPEN ? Object.keys(LIVECALLS).map(id=>Object.assign({id}, LIVECALLS[id]))
+    .filter(r=>r.pts!=null && r.week===wk && r.season===SEASON_YR && (!r.league||r.league===LEAGUE)) : [];
   const list = TR_OPEN ? `<div class="tr-list">${games
     .sort((x,y)=>(y.weather.penalty||0)-(x.weather.penalty||0))
     .map(r=>{
@@ -1769,11 +1877,26 @@ function renderTrackRecord(){
         <span class="tr-gt">${r.away} @ ${r.home}</span>
         <span class="tr-gd">${r.pts!=null?r.pts:'—'} <i>vs</i> ${r.line!=null?r.line:'—'}</span>
         <span class="tr-gw">${r.weather.driver||''} −${(r.weather.penalty||0).toFixed(1)}</span></div>`;
+    }).join('')}${weekLive.map(r=>{
+      const line = r.call && r.call.line!=null ? r.call.line : r.bet ? r.bet.line : null;
+      const oc=ouOf(r.pts,line), cl=oc==='under'?'hit':oc==='over'?'miss':'push', mk=oc==='under'?'✓':oc==='over'?'✗':'—';
+      const tag = r.call ? `live · ${r.call.cp.toLowerCase()}` : 'your bet';
+      return `<div class="tr-g"><span class="tr-gm ${cl}">${mk}</span>
+        <span class="tr-gt">${r.away} @ ${r.home}</span>
+        <span class="tr-gd">${r.pts} <i>vs</i> ${line!=null?line:'—'}</span>
+        <span class="tr-gw">${tag}</span></div>`;
     }).join('')}</div>` : '';
+  const n = sum(ls.calls);
+  const liveSec = hasLive ? `<div class="tr-sub">Live calls · locked at half / end of Q3 · graded on the live line</div>
+    ${row('This week', lw.calls, sum(lw.calls)?lw.callU:null)}${row(`${SEASON_YR} season`, ls.calls, n?ls.callU:null)}
+    ${row('Your live bets · season', ls.bets, sum(ls.bets)?ls.betU:null)}
+    <div class="tr-note">${n} graded call${n===1?'':'s'}. Live results swing a lot: it takes roughly
+      <b>400</b> to tell a real 55% edge from a coin flip. Units assume −110.</div>` : '';
   el.innerHTML = `<div class="trackrec" onclick="toggleTrack()">
-    <div class="tr-cap">📋 Week ${STATE.week ?? '–'} · kickoff weather unders
+    <div class="tr-cap">📋 Week ${wk ?? '–'} · our calls
       <span class="tr-tap">${TR_OPEN?'tap to collapse ▲':'tap for games ▼'}</span></div>
-    ${row('All weather unders', all)}${row('Strong only (≥2.5)', strong)}${list}</div>`;
+    ${games.length?`<div class="tr-sub">Kickoff weather unders</div>${row('All weather unders', all)}${row('Strong only (≥2.5)', strong)}`:''}
+    ${liveSec}${list}</div>`;
 }
 function toggleWhy(id,btn){
   const el=document.getElementById('why-'+id); el.classList.toggle('open');
@@ -1793,7 +1916,7 @@ function renderGames(){
     if(sort==='time') return a.kickSort-b.kickSort;
     return b.e.penalty-a.e.penalty;
   });
-  list.forEach(logSignal); saveSiglog(); renderTrackRecord();
+  list.forEach(logSignal); saveSiglog(); list.forEach(trackLiveCall); renderTrackRecord();
   // Counts always reflect the full slate; the tiles filter what's listed below.
   const unders=list.filter(g=>g.e.lean==='under'), strong=list.filter(g=>g.e.penalty>=2.5);
   const shown = FILTER==='unders' ? unders : FILTER==='strong' ? strong : list;
