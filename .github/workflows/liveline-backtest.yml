@@ -18,6 +18,10 @@ on:
         description: "Max snapshots (x10 credits)"
         default: "300"
         required: true
+      rule:
+        description: "Optional: narrow the fetch to one rule (q3strong | halfover)"
+        default: ""
+        required: false
 
 jobs:
   liveline:
@@ -35,6 +39,7 @@ jobs:
       - name: Run
         env:
           ODDS_API_KEY: ${{ secrets.ODDS_API_KEY }}
+          RULE: ${{ inputs.rule }}
         run: |
           node tools/backtest-liveline.mjs "${{ inputs.seasons }}" "${{ inputs.mode }}" "${{ inputs.cap }}" | tee /tmp/out.txt
           { echo '### Live-line backtest'; echo '```'; cat /tmp/out.txt; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
