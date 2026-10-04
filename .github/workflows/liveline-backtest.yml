@@ -1,0 +1,40 @@
+name: Live-Line Backtest
+
+# Grades the live under signal against REAL in-play totals from The Odds API
+# historical archive. Spends credits: 10 per snapshot. Run with mode "dry" first
+# to see the estimate. Snapshots are cached between runs, so a rerun is ~free.
+on:
+  workflow_dispatch:
+    inputs:
+      seasons:
+        description: "Seasons (e.g. 2024-2025)"
+        default: "2024-2025"
+        required: true
+      mode:
+        description: "dry (estimate only) | signal (games where the under fired) | all"
+        default: "dry"
+        required: true
+      cap:
+        description: "Max snapshots (x10 credits)"
+        default: "300"
+        required: true
+
+jobs:
+  liveline:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - uses: actions/cache@v4
+        with:
+          path: tools/.livecache
+          key: livecache-${{ github.run_id }}
+          restore-keys: livecache-
+      - name: Run
+        env:
+          ODDS_API_KEY: ${{ secrets.ODDS_API_KEY }}
+        run: |
+          node tools/backtest-liveline.mjs "${{ inputs.seasons }}" "${{ inputs.mode }}" "${{ inputs.cap }}" | tee /tmp/out.txt
+          { echo '### Live-line backtest'; echo '```'; cat /tmp/out.txt; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
