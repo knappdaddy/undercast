@@ -45,8 +45,8 @@ Toggle **🔴 Live** and the board updates itself:
   timestamped move log in each game's **Why** panel.
 - **Live trend + one tested call.** Combined yards-per-play is shown all game as a trend
   (slow / normal / fast). It makes a call only at the **end of Q3 with YPP < 4.5**. That's the
-  only rule that beat **real in-play totals** (Odds API archive, 2024–25): 60% (43–29), +7% ROI,
-  on a small sample. Halftime YPP < 5.0 went 49% against the live line, because books had already
+  only rule that beat **real in-play totals** (Odds API archive): 61% (71–45) across 2023–25.
+  It was picked on 2024–25 and held on held-out 2023 (64%), but 2025 alone was flat (51%). Halftime YPP < 5.0 went 49% against the live line, because books had already
   cut the total ~6 points, so it no longer makes a call. Live weather and backup QB are context only.
 - **Locked live calls + your bets.** A call is locked with the live book total when it fires and
   graded against that line. "I bet the under" logs the line you took. The track record shows live
