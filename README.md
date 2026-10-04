@@ -43,19 +43,16 @@ Toggle **🔴 Live** and the board updates itself:
   otherwise from ESPN's consensus total.
 - **Total-over-time** sparkline builds a live trend as the number moves, with a
   timestamped move log in each game's **Why** panel.
-- **Live under-o-meter** — a *separate, validated* in-game signal: combined
-  **yards-per-play** flags games trending under (YPP < 5.0 lean, < 4.5 strong;
-  3rd-down < 40% confirms), ramping with game progress and gated to start after
-  Q1. Backtested on 2019–2024 and confirmed **out-of-sample** (blind 2023–24:
-  YPP < 5.0 → ~61–62% rest-of-game unders at half/Q3 vs 52.4% break-even).
-  Stats come from ESPN's live box score. Overs are shown informational-only.
+- **Live trend + one tested call.** Combined yards-per-play is shown all game as a trend
+  (slow / normal / fast). It makes a call only at the **end of Q3 with YPP < 4.5**. That's the
+  only rule that beat **real in-play totals** (Odds API archive, 2024–25): 60% (43–29), +7% ROI,
+  on a small sample. Halftime YPP < 5.0 went 49% against the live line, because books had already
+  cut the total ~6 points, so it no longer makes a call. Live weather and backup QB are context only.
+- **Locked live calls + your bets.** A call is locked with the live book total when it fires and
+  graded against that line. "I bet the under" logs the line you took. The track record shows live
+  calls (week + season, units) and your bets. Reproduce with `tools/backtest-liveline.mjs`.
 - Settled games show the **final score + over/under result** in the header.
 - A freshness indicator shows how many seconds ago it last updated.
-
-> The live under-o-meter is graded against the market-implied remainder, not
-> live in-play lines (which aren't cheaply available), so it's validated as
-> *predictive of low scoring* — treat it as a strong lean/transparency tool, not
-> a guaranteed edge over a fast live market.
 
 ## Leagues
 

@@ -560,52 +560,36 @@ main{padding:.4rem 1rem 3rem}
 
       <div class="method" style="border-color:#1c6b58">
         <h4>🔴 Live trend — reading a game as it happens</h4>
-        <p>Weather is a <b>pre-game</b> edge. Once a game kicks off, UnderCast adds a second,
-          separate signal for in-progress games: is this game <b>playing</b> like an under? We
-          backtested a pile of in-game stats (2019–2024) against what the rest of the game actually
-          did, and one stood out — and it held up on <b>blind, out-of-sample</b> data.</p>
-        <p style="margin-top:.6rem">The winner is <b>combined yards per play (YPP)</b>. When both
-          offenses are grinding — short gains, stalled drives — the rest of the game tends to stay
-          low-scoring, and the live number is slow to fully reflect it.</p>
+        <p>Weather is a <b>pre-game</b> edge. For games in progress, UnderCast also reads how the game
+          is <b>playing</b>, mainly <b>combined yards per play (YPP)</b>.</p>
         <table class="mtable">
           <tr><th>Abbrev.</th><th>What it is</th><th>Why it matters</th></tr>
           <tr><td><b>YPP</b></td><td>Yards Per Play — total yards ÷ total offensive plays, both teams combined</td>
-            <td>The cleanest tempo-of-scoring gauge. Low YPP = drives stall = punts, not points.</td></tr>
+            <td>The cleanest gauge of how easily teams move the ball. League average is ~5.5.</td></tr>
           <tr><td><b>3rd</b></td><td>Third-down conversion — 3rd downs made ÷ attempted, both teams</td>
-            <td>Low conversion means <b>3-and-outs</b> — offenses keep giving the ball back. Confirms YPP.</td></tr>
+            <td>Low conversion means <b>3-and-outs</b>. Shown for context.</td></tr>
         </table>
-        <p style="margin-top:.6rem">The meter turns those into a live lean:</p>
+        <p style="margin-top:.6rem"><b>Tested against real live lines.</b> We first tested YPP against
+          an estimate of the live number, and it looked strong (~61%). Then we re-ran it against the
+          <b>actual in-play totals</b> books posted in 2024–25. That changed the picture:</p>
         <table class="mtable">
-          <tr><th>Combined YPP</th><th>Live lean</th></tr>
-          <tr><td><b>&lt; 5.0</b></td><td><b style="color:var(--under)">▼ UNDER</b></td></tr>
-          <tr><td><b>&lt; 4.5</b> (Q3+)</td><td><b style="color:var(--under)">▼ STRONG UNDER</b></td></tr>
-          <tr><td>&lt; 5.0 <b>and 3rd &lt; 40%</b></td><td>adds a ✓ confirmer</td></tr>
-          <tr><td><b>&gt; 6.5</b></td><td><span style="color:var(--hot)">▲ OVER</span> — shown for info only</td></tr>
+          <tr><th>When</th><th>Rule</th><th>vs the real live total</th></tr>
+          <tr><td>Halftime</td><td>YPP &lt; 5.0</td><td>49% unders (n=179) — <b>no edge</b>. Books had already cut the total ~6 pts.</td></tr>
+          <tr><td>End of Q3</td><td>YPP &lt; 5.0</td><td>54% unders, but heavier juice → about break-even</td></tr>
+          <tr><td>End of Q3</td><td><b>YPP &lt; 4.5</b></td><td><b style="color:var(--under)">60% (43–29), +7% ROI</b> — the one that cleared</td></tr>
+          <tr><td>Any</td><td>+ 3rd &lt; 40%</td><td>Made it <i>worse</i>. Dropped as a confirmer.</td></tr>
         </table>
-        <p style="margin-top:.6rem;color:var(--dim);font-size:.74rem">League-average YPP is ~5.5. The
-          meter stays quiet until <b>after Q1</b> (one bad drive isn't a trend) and gets more
-          confident as the game goes on — it's strongest by Q3. Overs were far noisier in testing, so
-          we surface them as information, never a lean.</p>
-        <p style="margin-top:.6rem"><b>🌬️ Live weather confirmer.</b> For outdoor games we also read
-          <b>current</b> conditions. When wind is <b>≥ 15 mph</b> or rain is coming down moderate+, a
-          weather chip reinforces the under (and can drive one on its own before there's enough
-          box-score data). Backtested at ~59–60% 2nd-half unders — though it largely <i>reinforces</i>
-          the pre-game weather read rather than being fully independent of it.</p>
-        <p style="margin-top:.6rem"><b>🔁 Backup QB in.</b> When a starter is replaced mid-game, the
-          offense is usually downgraded and the total is slow to catch it. We flag it only in
-          <b>competitive games</b> (within 8 points) — that's where the data holds (~55–57% rest-of-game
-          unders over 15 years). It's a <i>modest</i> confirmer, not a lock: blowout QB changes trend
-          under on game-script alone and don't count here.</p>
-        <p style="margin-top:.6rem"><b>🔒 Locked calls.</b> Before halftime the box is only a trend
-          (it says <i>locks at half</i>). The first time it reads UNDER at <b>halftime</b> or the
-          <b>end of Q3</b>, the moments the signal was tested at, UnderCast locks one call for that game
-          with the live book total at that moment. That call never changes afterwards and is graded
-          against that line in the track record. Tap <b>I bet the under</b> to log the line you
-          actually took, so your real bets get graded too.</p>
-        <p style="margin-top:.5rem;color:var(--dim);font-size:.74rem"><b>Honest limit:</b> we validated
-          this against the market's <i>implied</i> remaining points, not real live in-play lines
-          (which aren't cheaply available). So it's proven to <i>predict low scoring</i> — treat it as
-          a strong lean and a transparency tool, not a guaranteed edge over a fast live market.</p>
+        <p style="margin-top:.6rem">So the box is a <b>trend read</b> all game (<i>Slow game</i>,
+          <i>Normal pace</i>, <i>Fast game</i>) and only makes a call, <b style="color:var(--under)">▼ UNDER</b>,
+          at the <b>end of Q3</b> when YPP is under 4.5. 72 games is a small sample, so treat it as
+          promising, not proven.</p>
+        <p style="margin-top:.6rem"><b>🔒 Locked calls.</b> When that call fires, UnderCast locks it with the
+          live book total at that moment. It never changes afterwards and is graded against that line in
+          the track record. Tap <b>I bet the under</b> to log the line you actually took, so your real bets
+          get graded too.</p>
+        <p style="margin-top:.6rem"><b>🌬️ Live weather</b> (wind ≥ 15 mph or moderate+ rain) and <b>🔁 backup
+          QB in</b> (competitive games) are shown as context chips. They were only tested against the
+          estimate, not real live lines, so they no longer trigger or strengthen a call.</p>
       </div>
 
       <div class="method">
@@ -1580,24 +1564,22 @@ function whyHTML(g){
     ${ladder}
     ${moves}</div>`;
 }
-// Validated live signal: combined yards-per-play predicts the rest of the game
-// going under (YPP<5.0 lean, <4.5 strong; 3rd-down<40% confirms). Ramps with
-// game progress, gated to start end of Q1. Overs are informational only.
+// Live signal, re-tested against REAL in-play totals (Odds API archive, 2024–25):
+//  · halftime, YPP < 5.0  → 49% unders vs the live line. Books had already cut the
+//    total ~6 pts, so there's no edge. No call at half.
+//  · end of Q3, YPP < 4.5 → 60% (43–29), +7% ROI. The only bucket that cleared, on a
+//    small sample, so it's the one call we make and track.
+// The 3rd-down confirmer made results worse vs live lines, so it's display-only now.
 function liveUnderSignal(g){
   const L=g.live; if(!L || L.state!=='in' || L.ypp==null) return null;
   const per=L.period||1;
   if(per<2 && (L.plays||0)<16) return null;           // need ~a quarter of data first
   const ypp=L.ypp, third=(L.thirdRate!=null?L.thirdRate:null);
-  const confLabel = per>=4 ? 'Q4' : per>=3 ? 'Q3' : 'Q2';
-  const mature = per>=3;                                // Q3+ is where the signal is strongest
-  let side='none', strong=false;
-  if(ypp<4.5){ side='under'; strong=mature; }
-  else if(ypp<5.0){ side='under'; }
-  else if(ypp>6.5){ side='over'; }                      // informational only
-  const confirm = side==='under' && third!=null && third<0.40;
-  if(confirm && mature) strong=true;
+  const atQ3 = checkpointOf(L)==='End Q3';
+  const side = (atQ3 && ypp<4.5) ? 'under' : 'none';
+  const trend = ypp<5.0 ? 'slow' : ypp>6.5 ? 'fast' : 'normal';
   return {ypp, third, thirdStr:(L.thirdAtt?`${L.thirdConv}/${L.thirdAtt}`:null),
-          side, strong, confirm, confLabel};
+          side, strong:false, trend, atQ3, per};
 }
 // Live weather confirmer for outdoor games. Backtest: 2H wind ≥15 or intensifying
 // rain → ~59-60% 2H unders. Light rain / extreme wind did NOT add, so we gate on
@@ -1636,38 +1618,32 @@ function liveVerdict(g){
   const wxNasty = !!(wx && wx.nasty);
   const qb = !!(g.live && g.live.qbChange);   // backup QB in, competitive game
   if(!s && !wxNasty && !qb) return null;
-  let side = s ? s.side : 'none';
-  let strong = s ? s.strong : false;
-  let driver = '';
-  if(side !== 'over' && (wxNasty || qb)){     // weather / QB confirm or, absent a YPP read, drive the under
-    if(side !== 'under'){ side='under'; driver = qb ? 'backup QB' : 'live weather'; }
-  }
-  return {s, wx, wxNasty, qb, side, strong, driver};
+  // Live weather / backup QB were only tested against the pregame-scaled proxy, not live
+  // lines, so they're shown as context and never make (or strengthen) a call.
+  return {s, wx, wxNasty, qb, side: s ? s.side : 'none', strong:false};
 }
 function liveTrendStrip(g){
   if(MODE!=='live') return '';
   const v = liveVerdict(g); if(!v) return '';
-  const {s, wx, wxNasty, qb, side, strong, driver} = v;
-  const verdict = side==='under' ? `▼ ${strong?'STRONG UNDER':'UNDER'}` : side==='over' ? '▲ OVER' : '— even';
-  const cls = side==='under' ? (strong?'under strong':'under') : side==='over' ? 'over' : 'even';
-  const extras = (wxNasty?' · +wx':'') + (qb?' · +QB':'');
+  const {s, wx, wxNasty, qb, side} = v;
   const rec = callsStore()[g.id], locked = !!(rec && rec.call);
-  const note = side==='over' ? 'info only'
-    : locked ? `🔒 called at ${rec.call.cp.toLowerCase()}`
-    : (driver ? driver : (s ? s.confLabel + (strong?' · high':' · building') + extras : (qb?'backup QB':'live weather')))
-      + (side==='under' && !checkpointOf(g.live) && (g.live.period||0)<=2 ? ' · locks at half' : '');
+  const verdict = side==='under' ? '▼ UNDER'
+    : s ? (s.trend==='slow' ? 'Slow game' : s.trend==='fast' ? 'Fast game' : 'Normal pace') : 'Live context';
+  const cls = side==='under' ? 'under' : 'even';
+  const note = locked ? `🔒 called at ${rec.call.cp.toLowerCase()}`
+    : side==='under' ? 'end of Q3 · YPP under 4.5'
+    : (s && s.per<=3 && !s.atQ3) ? 'trend only · calls come at end of Q3' : 'trend only';
 
   let chips = '';
-  if(s){ const yppLow=s.ypp<5.0, yppHigh=s.ypp>6.5;
+  if(s){ const yppLow=s.ypp<4.5, yppHigh=s.ypp>6.5;
     chips += `<span class="lt-chip ${yppLow?'low':yppHigh?'high':''}">YPP ${s.ypp.toFixed(1)} combined</span>`;
-    if(s.thirdStr!=null){ const tl=s.third<0.40, th=s.third>0.55;
-      chips += `<span class="lt-chip ${tl?'low':th?'high':''}">3rd ${s.thirdStr} · ${Math.round(s.third*100)}%${s.confirm?' ✓':''}</span>`; }
+    if(s.thirdStr!=null) chips += `<span class="lt-chip">3rd ${s.thirdStr} · ${Math.round(s.third*100)}%</span>`;
   }
-  if(qb && side==='under') chips += `<span class="lt-chip low">🔁 backup QB in</span>`;
-  if(wxNasty && side==='under') chips += `<span class="lt-chip low">${wx.label}</span>`;
+  if(qb) chips += `<span class="lt-chip">🔁 backup QB in</span>`;
+  if(wxNasty) chips += `<span class="lt-chip">${wx.label}</span>`;
 
   return `<div class="ltrend ${cls}">
-    <div class="lt-head"><span class="lt-v">${verdict}</span><span class="lt-c">live trend · ${note}</span></div>
+    <div class="lt-head"><span class="lt-v">${verdict}</span><span class="lt-c">${note}</span></div>
     <div class="lt-stats">${chips}</div></div>`;
 }
 // Scores + status live in the header next to the teams (no separate row).
@@ -1760,8 +1736,8 @@ function gradeStrip(g){
   return `<div class="grades"><span class="gr-h">Our call</span><span class="gr ${mk}">${label} · ${sym}</span></div>`;
 }
 // ---- Live calls: hold the live signal to account ----
-// One call per game, LOCKED the first time the under shows at a checkpoint the
-// signal was tested at (halftime, end of Q3), together with the live book total
+// One call per game, LOCKED when the under shows at the end of Q3 (the one checkpoint
+// that held up against real live lines), together with the live book total
 // at that moment. It is graded on that line and never changes afterwards.
 // "I bet this" separately logs the line you actually took.
 let LIVECALLS = {}; try{ LIVECALLS = JSON.parse(localStorage.getItem('uc_livecalls')||'{}'); }catch(e){ LIVECALLS = {}; }
@@ -1772,8 +1748,8 @@ const clockSecs = c => { const m=String(c||'').match(/(\d+):(\d+)/); return m ? 
 function checkpointOf(L){
   if(!L || L.state!=='in') return null;
   const p=L.period||0, s=clockSecs(L.clock);
-  if((p===2 && s===0) || (p===3 && s!=null && s>=450)) return 'Half';       // halftime or early Q3
   if((p===3 && s===0) || (p===4 && s!=null && s>=600)) return 'End Q3';     // end of Q3 or early Q4
+  return null;   // halftime calls were dropped: no edge vs the live line (see liveUnderSignal)
   return null;
 }
 function liveLineOf(g){
@@ -1893,7 +1869,7 @@ function renderTrackRecord(){
         <span class="tr-gw">${tag}</span></div>`;
     }).join('')}</div>` : '';
   const n = sum(ls.calls);
-  const liveSec = hasLive ? `<div class="tr-sub">Live calls · locked at half / end of Q3 · graded on the live line</div>
+  const liveSec = hasLive ? `<div class="tr-sub">Live calls · locked at end of Q3 · graded on the live line</div>
     ${row('This week', lw.calls, sum(lw.calls)?lw.callU:null)}${row(`${SEASON_YR} season`, ls.calls, n?ls.callU:null)}
     ${row('Your live bets · season', ls.bets, sum(ls.bets)?ls.betU:null)}
     <div class="tr-note">${n} graded call${n===1?'':'s'}. Live results swing a lot: it takes roughly

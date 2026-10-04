@@ -134,6 +134,10 @@ const fired = b => { const y=ypp(b); return y!=null && (y<5.0 || (process.env.OV
   for(const gid in games){ const m=meta[gid]; if(!m) continue;
     for(const cp of CPS){ const b=games[gid][cp.key]; if(!b.end || !b.plays) continue;
       if((MODE==='signal'||process.env.PLAN==='signal') && !fired(b)) continue;
+      // RULE narrows the fetch to one candidate, e.g. for an out-of-sample check:
+      //   q3strong = end of Q3 with YPP<4.5 · halfover = halftime with YPP>6.5
+      if(process.env.RULE==='q3strong' && !(cp.key==='Q3' && ypp(b)<4.5)) continue;
+      if(process.env.RULE==='halfover' && !(cp.key==='HALF' && ypp(b)>6.5)) continue;
       need.push({ gid, cp:cp.key, start:b.end+cp.open, end:b.end+cp.close, cpEnd:b.end }); } }
   // Greedy cover, adaptive: request at the earliest uncovered window's end. The archive returns the
   // latest snapshot <= t, so the snapshot lands inside that window; it then covers every window
