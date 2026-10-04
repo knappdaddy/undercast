@@ -197,7 +197,7 @@ const fired = b => { const y=ypp(b); return y!=null && (y<5.0 || (process.env.OV
     console.log('  rule                           n   W-L-P     under%        ROI     avg price   final−line');
     for(const [l,fn] of RULES) console.log(fmt(l, tally(rs.filter(fn))));
     console.log(fmt('YPP > 6.5 (app OVER, info)', tally(rs.filter(r=>r.ypp>6.5),'over'),'over'));
-    for(let s=LO;s<=HI;s++){ const t=tally(rs.filter(r=>r.season===s&&r.ypp<5.0)); if(t.n) console.log(fmt(`  YPP<5.0 · ${s}`, t)); }
+    for(const cut of [4.5, 5.0]) for(let s=LO;s<=HI;s++){ const t=tally(rs.filter(r=>r.season===s&&r.ypp<cut)); if(t.n) console.log(fmt(`  YPP<${cut.toFixed(1)} · ${s}`, t)); }
     console.log('');
   }
   console.log('Also: how far had the live line already dropped below the pregame close when the app said UNDER?');
