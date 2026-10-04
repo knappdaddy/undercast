@@ -107,7 +107,7 @@ async function snapshot(t){
   const slim={ ts:j.timestamp, data:(j.data||[]).map(e=>({ home:e.home_team, away:e.away_team, kick:e.commence_time,
     books:(e.bookmakers||[]).map(b=>{ const m=(b.markets||[]).find(x=>x.key==='totals'); if(!m) return null;
       const o=m.outcomes.find(x=>x.name==='Over'), u=m.outcomes.find(x=>x.name==='Under');
-      return o&&u ? { key:b.key, pt:+o.point, under:+u.price, upd:m.last_update||b.last_update } : null; }).filter(Boolean) })) };
+      return o&&u ? { key:b.key, pt:+o.point, under:+u.price, over:+o.price, upd:m.last_update||b.last_update } : null; }).filter(Boolean) })) };
   fs.writeFileSync(f, JSON.stringify(slim)); await sleep(250);
   return slim;
 }
@@ -170,7 +170,7 @@ const fired = b => { const y=ypp(b); return y!=null && (y<5.0 || (process.env.OV
       const line=median(best.fresh.map(x=>x.pt));
       const pb=PREF.map(k=>best.fresh.find(x=>x.key===k)).find(Boolean) || best.fresh[0];
       rows.push({ gid, cp:cp.key, season:m.season, ypp:ypp(b), third:third(b), pts:b.pts, line, total:m.total, close:m.close,
-        bookPt:pb.pt, price:pb.under });
+        bookPt:pb.pt, price:pb.under, oprice:pb.over });
     }
   }
   console.log(`graded rows: ${rows.length} · skipped: ${stale} no fresh line · ${nomatch} not in any snapshot\n`);
@@ -178,12 +178,15 @@ const fired = b => { const y=ypp(b); return y!=null && (y<5.0 || (process.env.OV
   const tally=(rs, side='under')=>{ let w=0,l=0,p=0,roi=0,roiN=0,diff=0,vig=0;
     for(const r of rs){ diff+=r.total-r.line; vig+=r.price;
       if(r.total===r.line) p++; else if((r.total<r.line)===(side==='under')) w++; else l++;
-      if(side==='under' && r.total!==r.bookPt){ roiN++; roi += r.total<r.bookPt ? (r.price>0?r.price/100:100/-r.price) : -1; } }
+      const pr = side==='under' ? r.price : r.oprice;            // over prices only in newer cached snapshots
+      if(pr!=null && !isNaN(pr) && r.total!==r.bookPt){ roiN++;
+        const won = side==='under' ? r.total<r.bookPt : r.total>r.bookPt;
+        roi += won ? (pr>0?pr/100:100/-pr) : -1; } }
     const d=w+l; return { n:rs.length, w, l, p, pct:d?w/d*100:0, roi:roiN?roi/roiN*100:null, diff:rs.length?diff/rs.length:0, vig:rs.length?vig/rs.length:0 }; };
   const fmt=(label,t,side='under')=>'  '+label.padEnd(28)+`${String(t.n).padStart(4)}  ${String(t.w).padStart(3)}-${String(t.l).padStart(3)}-${t.p}  `
     +`${t.pct.toFixed(1).padStart(5)}% ${side.padEnd(5)}`
-    +(side==='under'?`  ROI ${t.roi==null?'  —  ':((t.roi>=0?'+':'')+t.roi.toFixed(1)+'%').padStart(6)}  avg u-price ${t.vig.toFixed(0)}`:'')
-    +`  final−line ${(t.diff>=0?'+':'')+t.diff.toFixed(1)}`+(side==='under'&&t.n>=30&&t.pct>=BREAKEVEN?'  ✅':'');
+    +`  ROI ${t.roi==null?'  —  ':((t.roi>=0?'+':'')+t.roi.toFixed(1)+'%').padStart(6)}`
+    +`  final−line ${(t.diff>=0?'+':'')+t.diff.toFixed(1)}`+(t.n>=30&&t.pct>=BREAKEVEN?'  ✅':'');
   const RULES=[
     ['All captured games',          r=>true],
     ['YPP < 4.5',                   r=>r.ypp<4.5],
@@ -194,9 +197,10 @@ const fired = b => { const y=ypp(b); return y!=null && (y<5.0 || (process.env.OV
   ];
   for(const cp of CPS){ const rs=rows.filter(r=>r.cp===cp.key);
     console.log(`══ ${cp.key==='HALF'?'HALFTIME':'END OF Q3'} · graded vs real in-play total (break-even ${BREAKEVEN}% at -110) ══`);
-    console.log('  rule                           n   W-L-P     under%        ROI     avg price   final−line');
+    console.log('  rule                           n   W-L-P     win%   side    ROI    final−line');
     for(const [l,fn] of RULES) console.log(fmt(l, tally(rs.filter(fn))));
-    console.log(fmt('YPP > 6.5 (app OVER, info)', tally(rs.filter(r=>r.ypp>6.5),'over'),'over'));
+    for(const cut of [6.0, 6.5, 7.0]) console.log(fmt(`OVER · YPP > ${cut.toFixed(1)}`, tally(rs.filter(r=>r.ypp>cut),'over'),'over'));
+    for(let s=LO;s<=HI;s++){ const t=tally(rs.filter(r=>r.season===s&&r.ypp>6.5),'over'); if(t.n) console.log(fmt(`  OVER YPP>6.5 · ${s}`, t,'over')); }
     for(const cut of [4.5, 5.0]) for(let s=LO;s<=HI;s++){ const t=tally(rs.filter(r=>r.season===s&&r.ypp<cut)); if(t.n) console.log(fmt(`  YPP<${cut.toFixed(1)} · ${s}`, t)); }
     console.log('');
   }
