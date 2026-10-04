@@ -133,7 +133,7 @@ const fired = b => { const y=ypp(b); return y!=null && (y<5.0 || (process.env.OV
   const need=[];
   for(const gid in games){ const m=meta[gid]; if(!m) continue;
     for(const cp of CPS){ const b=games[gid][cp.key]; if(!b.end || !b.plays) continue;
-      if((MODE==='signal'||process.env.PLAN==='signal') && !fired(b)) continue;
+      if((MODE==='signal'||process.env.PLAN==='signal') && !process.env.RULE && !fired(b)) continue;
       // RULE narrows the fetch to one candidate, e.g. for an out-of-sample check:
       //   q3strong = end of Q3 with YPP<4.5 · halfover = halftime with YPP>6.5
       if(process.env.RULE==='q3strong' && !(cp.key==='Q3' && ypp(b)<4.5)) continue;
