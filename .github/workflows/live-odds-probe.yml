@@ -1,0 +1,25 @@
+name: Live Odds Probe
+
+# ~10 credits. Checks whether The Odds API historical archive includes in-play totals.
+on:
+  workflow_dispatch:
+    inputs:
+      when:
+        description: "Snapshot time (UTC ISO)"
+        default: "2024-10-06T18:40:00Z"
+        required: true
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - name: Probe
+        env:
+          ODDS_API_KEY: ${{ secrets.ODDS_API_KEY }}
+        run: |
+          node tools/live-odds-probe.mjs "${{ inputs.when }}" | tee /tmp/out.txt
+          { echo '### Live odds probe'; echo '```'; cat /tmp/out.txt; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
