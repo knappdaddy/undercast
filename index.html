@@ -153,6 +153,21 @@ main{padding:.4rem 1rem 3rem}
 .chip.rain.act{background:#12233d;border-color:#1d3a63;color:#7fb3ff}
 .chip.snow.act{background:#1c2434;border-color:#33415c;color:#cfe0ff}
 .chip.indoor{background:var(--panel2);color:var(--dim)}
+.wx.tap{cursor:pointer}
+.chip.hr{background:transparent;border-color:var(--line2);color:var(--acc)}
+.hw-head,.hw-row{display:grid;grid-template-columns:1.6fr .6fr .8fr 1.5fr 1.2fr;align-items:center;gap:.3rem;
+  padding:.42rem .3rem;font-size:.8rem}
+.hw-head{font-size:.58rem;color:var(--dim);text-transform:uppercase;letter-spacing:.06em;border-bottom:1px solid var(--line2)}
+.hw-row{border-bottom:1px solid var(--line);color:var(--mid)}
+.hw-row.in{color:var(--txt)}
+.hw-t{font-weight:600;display:flex;align-items:center;gap:.35rem;flex-wrap:wrap}
+.hw-tag{font-size:.55rem;font-weight:700;text-transform:uppercase;letter-spacing:.05em;padding:.08rem .35rem;
+  border-radius:5px;background:var(--panel2);color:var(--acc);border:1px solid var(--line2)}
+.hw-s{text-align:center}
+.hw-tp,.hw-w,.hw-p{font-family:"Barlow Condensed";font-weight:700;font-size:1rem}
+.hw-w i,.hw-p i{font-style:normal;font-family:Inter,sans-serif;font-weight:500;font-size:.62rem;color:var(--dim)}
+.hw-w.hot{color:var(--warn)} .hw-p.wet{color:#7fb3ff}
+.hw-note{font-size:.66rem;color:var(--dim);line-height:1.5;margin:.7rem 0 .2rem}
 
 /* edge readout */
 .g-edge{flex-shrink:0;text-align:right;min-width:78px}
@@ -624,6 +639,11 @@ main{padding:.4rem 1rem 3rem}
   </div>
 </div>
 
+<!-- HOURLY WEATHER SHEET -->
+<div class="modal" id="wxModal" onclick="if(event.target===this)closeWx()">
+  <div class="sheet" id="wxBody"></div>
+</div>
+
 <!-- SETTINGS SHEET -->
 <div class="modal" id="settings" onclick="if(event.target===this)closeSettings()">
   <div class="sheet">
@@ -950,6 +970,20 @@ function forecastWx(H, bi){
   };
 }
 
+// Hour-by-hour forecast for the pop-up: from an hour before kickoff through the
+// game's estimated end (typical broadcast length: NFL ~3h15, college ~3h30).
+const GAME_MIN = {nfl:195, cfb:210};
+function hourlyWindow(H, kickT, durMin){
+  const HR=3600e3, start=Math.floor(kickT/HR)*HR-HR, end=Math.floor((kickT+durMin*60e3)/HR)*HR;
+  const at=(a,i)=> (a && a[i]!=null) ? +a[i] : null, out=[];
+  (H.time||[]).forEach((t,i)=>{ const ts=Date.parse(t+(t.endsWith('Z')?'':'Z'));
+    if(ts<start || ts>end) return;
+    out.push({t:ts, tempF:Math.round(at(H.temperature_2m,i)), wind:Math.round(at(H.wind_speed_10m,i)),
+      gust:Math.round(at(H.wind_gusts_10m,i) ?? at(H.wind_speed_10m,i)), prob:at(H.precipitation_probability,i),
+      mm:at(H.precipitation,i)||0, code:at(H.weather_code,i)}); });
+  return out;
+}
+
 async function attachWeather(games){
   const pastDays = isPastWeek() ? 16 : 3;          // light for the live slate; deeper only for grading old weeks
   await pool(games, 4, async g=>{
@@ -973,7 +1007,9 @@ async function attachWeather(games){
         d = await wxFetch(base); H=d.hourly||{}; bi=nearest(H); src='global blend';
       }
       if(bi<0) throw new Error('kickoff outside forecast range');
-      g.weather = Object.assign(forecastWx(H, bi), {src});
+      const dur = GAME_MIN[g.league||'nfl'] || 195;
+      g.weather = Object.assign(forecastWx(H, bi), {src, kickT:target, endT:target+dur*60e3,
+        hours:hourlyWindow(H, target, dur)});
       WXCACHE[ck] = {w:g.weather, t:Date.now()};          // remember a good forecast
     }catch(e){
       const c = WXCACHE[ck];                               // fall back only to a FRESH forecast
@@ -1122,9 +1158,18 @@ function seedDemoBooks(games){
 function sampleGames(){
   const w=(tempF,windMph,gust,precipType,precipIntensity,precipProb,humidity,sky)=>
     ({tempF,windMph,gust,precipType,precipIntensity,precipProb,humidity,sky});
+  // demo hourly rows (kickoff −1h → ~end) so the hourly pop-up works in the sample slate
+  const demoHours=(kick,wx)=>{ const m=/(\d+):(\d+) (AM|PM)/.exec(kick); if(!m || !wx || wx.indoorNeutral) return wx;
+    const h0=(+m[1]%12)+(m[3]==='PM'?12:0), lab=h=>{ const x=((h%24)+24)%24; return (x%12||12)+(x<12?' AM':' PM'); };
+    const code = wx.precipType==='rain' ? (wx.precipIntensity==='moderate'?63:61) : wx.precipProb>30 ? 3 : 2;
+    const HR=3600e3;
+    wx.hours=[-1,0,1,2,3].map((k,i)=>({label:lab(h0+k), t:i*HR, night:(h0+k)>=19, tempF:wx.tempF-Math.max(0,k), wind:wx.windMph+[-2,0,1,2,0][i],
+      gust:wx.gust+[-2,0,2,3,1][i], prob:Math.max(0,Math.min(100,wx.precipProb+[-15,0,10,5,-10][i])),
+      mm:wx.precipType==='rain'?[0,0.6,1.4,1.1,0.3][i]:0, code}));
+    wx.kickT=HR; wx.endT=4*HR; return wx; };
   const g=(away,home,awayAb,homeAb,venue,city,roof,kick,kickSort,mkt,live,weather)=>
     ({id:awayAb+homeAb,away,home,awayAb,homeAb,venue,city,roof,kick,kickSort,
-      marketTotal:mkt,liveTotal:live,espnTotal:mkt,book:'Consensus',weather,live:{state:'pre'}});
+      marketTotal:mkt,liveTotal:live,espnTotal:mkt,book:'Consensus',weather:demoHours(kick,weather),live:{state:'pre'}});
   return [
     g('Jets','Bills','NYJ','BUF','Highmark Stadium','Orchard Park, NY','open','Sun 1:00 PM ET',1,45.5,41.5, w(58,24,33,'rain','light',55,78,'Windy, showers off Lake Erie')),
     g('Bengals','Browns','CIN','CLE','Huntington Bank Field','Cleveland, OH','open','Sun 1:00 PM ET',1,46.5,44.5, w(61,19,26,'none','none',15,64,'Breezy lakefront, clouds')),
@@ -1507,6 +1552,50 @@ function wxChips(g){
   else if(w.precipType==='snow') out += chip('snow', e.comps.precip>0,'🌨️',`${w.precipIntensity} snow${odds}`);
   return out;
 }
+const wxHasHours = g => !!(g.weather && g.weather.hours && g.weather.hours.length);
+function skyIcon(code, night){
+  if(code==null) return '·';
+  if([95,96,99].includes(code)) return '⛈️';
+  if([71,73,75,77,85,86].includes(code)) return '🌨️';
+  if(code>=51 && code<=82) return '🌧️';
+  if(code===45||code===48) return '🌫️';
+  if(code===3) return '☁️';
+  if(code===2) return night?'☁️':'⛅';
+  return night ? '🌙' : '☀️';
+}
+const etHour = ts => new Date(ts).toLocaleString('en-US',{hour:'numeric',timeZone:'America/New_York'});
+const etHour24 = ts => +new Date(ts).toLocaleString('en-US',{hour:'numeric',hour12:false,timeZone:'America/New_York'}) % 24;
+function openWx(id){
+  const g=STATE.games.find(x=>x.id===id); if(!g || !wxHasHours(g)) return;
+  const w=g.weather, HR=3600e3;
+  const kickRow = w.kickT!=null ? Math.floor(w.kickT/HR)*HR : null, endRow = w.endT!=null ? Math.floor(w.endT/HR)*HR : null;
+  const rows = w.hours.map(h=>{
+    const night = h.night ?? (h.t!=null ? (etHour24(h.t)>=19 || etHour24(h.t)<7) : false);
+    const tag = h.t===kickRow ? '<span class="hw-tag">Kickoff</span>' : h.t===endRow ? '<span class="hw-tag">≈ End</span>' : '';
+    const windy = h.wind>=15, wet = (h.prob??0)>=40;
+    const inch = h.mm>=0.25 ? `${(h.mm/25.4).toFixed(2)}″` : '';
+    return `<div class="hw-row ${h.t>=kickRow && h.t<=endRow ? 'in' : ''}">
+      <span class="hw-t">${h.label || etHour(h.t)}${tag}</span>
+      <span class="hw-s" title="${skyText(h.code)}">${skyIcon(h.code, night)}</span>
+      <span class="hw-tp">${h.tempF}°</span>
+      <span class="hw-w ${windy?'hot':''}">${h.wind}<i> mph</i>${h.gust>h.wind?`<i> G${h.gust}</i>`:''}</span>
+      <span class="hw-p ${wet?'wet':''}">${h.prob!=null?h.prob+'%':'—'}${inch?`<i> ${inch}</i>`:''}</span></div>`;
+  }).join('');
+  document.getElementById('wxBody').innerHTML = `
+    <h3>${g.awayAb} @ ${g.homeAb} · hourly weather</h3>
+    <p class="sh-sub">${g.venue||g.city||''} · ${g.kick}</p>
+    <div class="hw-head"><span class="hw-t">Time (ET)</span><span class="hw-s"></span><span class="hw-tp">Temp</span>
+      <span class="hw-w">Wind</span><span class="hw-p">Rain</span></div>
+    ${rows}
+    <p class="hw-note">Wind ≥ 15 mph and rain chances ≥ 40% are highlighted. The model reads wind and
+      temperature at kickoff and rain across the game window. End time is an estimate
+      (${(g.league||'nfl')==='cfb'?'3½':'3¼'} hours after kickoff).${w.src?` Source: ${w.src} via Open-Meteo.`:''}</p>
+    <div class="sheet-btns"><button class="btn-clear" onclick="closeWx()">Close</button></div>`;
+  document.getElementById('wxModal').classList.add('open');
+}
+function closeWx(){ document.getElementById('wxModal').classList.remove('open'); }
+document.addEventListener('keydown', e=>{ if(e.key==='Escape') closeWx(); });
+
 function compRow(icon,name,detail,val){
   const active=val>0, pct=Math.min(val/3.6*100,100);
   return `<div class="comp"><span class="ci">${icon}</span>
@@ -1697,7 +1786,8 @@ function gameCard(g){
           <span class="roofpill">${g.roof==='open'?'Outdoor':g.roof==='dome'?'Dome':g.roof==='fixed'?'Fixed roof':'Retractable'}</span>
           <span>${g.venue||g.city}</span>
         </div>
-        <div class="wx">${wxChips(g)}</div>
+        ${wxHasHours(g) ? `<div class="wx tap" onclick="openWx('${g.id}')" role="button" aria-label="Hourly forecast">${wxChips(g)}<span class="chip hr">Hourly ›</span></div>`
+          : `<div class="wx">${wxChips(g)}</div>`}
       </div>
       ${edgeCol(g)}
     </div>

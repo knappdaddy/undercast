@@ -65,6 +65,8 @@ Toggle **🔴 Live** and the board updates itself:
 - **Weather** — NOAA National Blend of Models (via Open-Meteo) for US venues, falling back to
   Open-Meteo's global blend. Wind/temp at kickoff; precipitation across the game window, with the
   rain penalty scaled by forecast probability.
+  Tap a game's weather row for an **hour-by-hour** forecast from an hour before kickoff through
+  the estimated end of the game.
 - **Optional exact book lines + live in-play totals** — add a [The Odds API](https://the-odds-api.com)
   key under ⚙ Settings (stored only in your browser).
 
