@@ -119,7 +119,7 @@ function row(label,t){ const flag=t.underPct>=BREAKEVEN?'  ✅':'';
   console.log('ok');
   const types = SCOPE==='all' ? ['REG','WC','DIV','CON','SB'] : ['REG'];
   const games = all.filter(r=>+r.season>=LO && +r.season<=HI && types.includes(r.game_type))
-    .map(r=>({ season:+r.season, home:r.home_team, loc:(r.location||'Home'),
+    .map(r=>({ season:+r.season, week:+r.week, home:r.home_team, away:r.away_team, loc:(r.location||'Home'),
       gameday:r.gameday, gametime:r.gametime, roof:(r.roof||'').trim(),
       total:num(r.total), line:num(r.total_line), temp:num(r.temp), wind:num(r.wind),
       precipType:'none', precipIntensity:'none' }))
@@ -173,8 +173,23 @@ function row(label,t){ const flag=t.underPct>=BREAKEVEN?'  ✅':'';
   console.log('  FULL MODEL LEAN (wind+precip+cold+heat)');
   console.log(row('  penalty ≥ 1.5 (UNDER)', tally(games.filter(g=>g.pen>=1.5))));
   console.log(row('  penalty ≥ 2.0', tally(games.filter(g=>g.pen>=2.0))));
+  console.log(row('  penalty ≥ 2.5 (app strong)', tally(games.filter(g=>g.pen>=2.5))));
   console.log(row('  penalty ≥ 3.0 (strong)', tally(games.filter(g=>g.pen>=3.0))));
   console.log(row('  no lean (< 1.5)', tally(games.filter(g=>g.pen<1.5))));
   console.log('  '+'─'.repeat(70));
   console.log(`  ✅ = under rate clears the ${BREAKEVEN}% needed to profit at -110.\n`);
+  // LIST=1: every UNDER lean, game by game (used for in-season record checks)
+  if(process.env.LIST){
+    const flagged = games.filter(g=>g.pen>=1.5).sort((a,b)=>a.season-b.season||a.week-b.week||b.pen-a.pen);
+    console.log('  FLAGGED UNDERS (penalty ≥ 1.5)');
+    console.log('  wk  game          wind  temp  precip        pen   line  final  result');
+    for(const g of flagged){
+      const res = g.total<g.line ? '✓ under' : g.total>g.line ? '✗ over' : '— push';
+      console.log('  '+String(g.week).padStart(2)+'  '+`${g.away} @ ${g.home}`.padEnd(13)
+        +String(g.wind??'—').padStart(5)+String(g.temp??'—').padStart(6)+'  '
+        +(g.precipType==='none'?'dry':`${g.precipIntensity} ${g.precipType}`).padEnd(13)
+        +g.pen.toFixed(1).padStart(4)+String(g.line).padStart(7)+String(g.total).padStart(7)+'  '+res+(g.pen>=2.5?'  (strong)':''));
+    }
+    console.log();
+  }
 })();
