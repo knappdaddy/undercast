@@ -16,6 +16,10 @@ on:
         description: "reg (regular season) or all (incl. playoffs)"
         default: "reg"
         required: true
+      list:
+        description: "List every flagged game (1 = yes)"
+        default: ""
+        required: false
 
 jobs:
   backtest:
@@ -29,6 +33,7 @@ jobs:
         env:
           SEASONS: ${{ inputs.seasons }}
           SCOPE: ${{ inputs.scope }}
+          LIST: ${{ inputs.list }}
         run: |
           node tools/backtest-precip.mjs "$SEASONS" "$SCOPE" | tee /tmp/out.txt
           {
