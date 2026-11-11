@@ -2093,7 +2093,7 @@ function renderSeasonRec(){
       : '<div class="rec-empty">No weather unders this week.</div>'}</div>`;
     return `<div class="rw ${open?'open':''}" onclick="toggleRecWeek('${r.key}')">
       <div class="rw-h">
-        <div class="rw-d"><b>${md(r.start)}–${md(end)}</b>${partial?' <span class="rw-p">in progress</span>':''}<span>${sub}</span></div>
+        <div class="rw-d"><b>${md(r.start)}–${end.getMonth()===r.start.getMonth() ? end.getDate() : md(end)}</b>${partial?' <span class="rw-p">in progress</span>':''}<span>${sub}</span></div>
         <div class="rw-c">${cell(r.nfl)}</div><div class="rw-c">${cell(r.cfb)}</div>
         <div class="rw-c"><b>${t.W+t.L+t.P ? recStr(t) : '—'}</b><span class="${t.u>=0?'good':'bad'}">${t.W+t.L+t.P?recU(t.u):''}</span></div>
         <div class="rw-c cum"><b>${recStr(cumT)}</b><span class="${cum>=0?'good':'bad'}">${recU(cum)}</span></div>
