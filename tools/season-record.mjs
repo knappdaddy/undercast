@@ -87,11 +87,12 @@ async function venueOf(league, c, homeAb){
   return { roof, lat:geo?.lat ?? null, lon:geo?.lon ?? null, name:v.fullName||'' };
 }
 
-/* ---- kickoff-hour forecast (batched per venue over the season's dates) ---- */
+/* ---- kickoff-hour forecast: ONE request per venue covering every date it hosts ---- */
 const WX = {};      // "lat,lon" -> { source -> hourly }
+const vkey = g => `${g.lat.toFixed(3)},${g.lon.toFixed(3)}`;
 async function hourlyFor(lat, lon, dates, source){
   const key = `${lat.toFixed(3)},${lon.toFixed(3)}`; (WX[key] ||= {});
-  if(WX[key][source]) return WX[key][source];
+  if(WX[key][source]) return WX[key][source];          // dates = the venue's full season set
   const s = dates[0], e = new Date(Date.parse(dates[dates.length-1])+864e5).toISOString().slice(0,10);
   const q = `latitude=${lat}&longitude=${lon}&start_date=${s}&end_date=${e}&hourly=${HOURLY}&temperature_unit=fahrenheit&wind_speed_unit=mph&timezone=UTC`;
   const url = source==='nbm' ? `https://historical-forecast-api.open-meteo.com/v1/forecast?${q}&models=ncep_nbm_conus`
@@ -142,6 +143,8 @@ async function gradeWeek(league, week){
     method:'Kickoff-hour forecast (Open-Meteo forecast archive, NOAA NBM first) run through the app model; graded vs ESPN total at kickoff. Penalty >= 1.5 = UNDER call, >= 2.5 = strong. Complete weeks are frozen.',
     leagues:{ nfl:{weeks:{}}, cfb:{weeks:{}} } };
 
+  // 1) collect every finished game from each week that isn't frozen yet
+  const pending = [];                                  // { league, wk, W }
   for(const league of ['nfl','cfb']){
     const cur = await getJSON(ESPN[league] + (league==='cfb' ? '?groups=80' : ''));
     const type = cur.season?.type, curWeek = cur.week?.number || 1;
@@ -150,16 +153,21 @@ async function gradeWeek(league, week){
       const old = prev?.leagues?.[league]?.weeks?.[wk];
       if(old?.complete){ out.leagues[league].weeks[wk] = old; continue; }       // frozen
       const W = await gradeWeek(league, wk);
-      if(!W.events) continue;
+      if(W.events) pending.push({ league, wk, W });
+    }
+  }
+  // 2) every date each outdoor venue hosts, so its forecast is ONE request
+  const venueDates = {};
+  for(const {W} of pending) W.games.filter(g=>g.roof==='open' && g.lat!=null)
+    .forEach(g=>(venueDates[vkey(g)] ||= new Set()).add(g.kickISO.slice(0,10)));
+  console.log(`${pending.length} league-weeks to grade · ${Object.keys(venueDates).length} outdoor venues\n`);
+
+  // 3) grade
+  for(const {league, wk, W} of pending){
       const outdoor = W.games.filter(g=>g.roof==='open' && g.lat!=null);
-      // batch each venue's forecast fetch across the dates it hosts this week
-      const byVenue = {};
-      outdoor.forEach(g=>{ (byVenue[`${g.lat.toFixed(3)},${g.lon.toFixed(3)}`] ||= []).push(g); });
       const calls = []; let graded = 0, noWx = 0;
-      for(const gs of Object.values(byVenue)){
-        const dates = [...new Set(gs.map(g=>g.kickISO.slice(0,10)))].sort();
-        for(const g of gs){
-          const wx = await kickoffWx(g, dates);
+      for(const g of outdoor){
+          const wx = await kickoffWx(g, [...venueDates[vkey(g)]].sort());
           if(!wx){ noWx++; continue; }
           graded++;
           const e = M.computeEdge({ roof:'open', weather:wx, marketTotal:g.line, live:{state:'pre'} });
@@ -172,7 +180,6 @@ async function gradeWeek(league, week){
             precip: wx.precipType==='none' ? 'dry' : `${wx.precipIntensity} ${wx.precipType}`,
             src: wx.src,
             result: g.final<g.line ? 'W' : g.final>g.line ? 'L' : 'P' });
-        }
       }
       calls.sort((a,b)=>b.pen-a.pen);
       out.leagues[league].weeks[wk] = { complete:W.complete, games:W.games.length, outdoor:outdoor.length,
@@ -180,8 +187,10 @@ async function gradeWeek(league, week){
       const rec = calls.reduce((a,c)=>(a[c.result]++,a), {W:0,L:0,P:0});
       console.log(`${league.toUpperCase()} wk ${String(wk).padStart(2)} ${W.complete?'final  ':'partial'}  games ${String(W.games.length).padStart(3)}  outdoor ${String(outdoor.length).padStart(3)}  graded ${String(graded).padStart(3)}${noWx?` (no wx ${noWx})`:''}  calls ${calls.length}  ${rec.W}-${rec.L}-${rec.P}`);
       calls.forEach(c=>console.log(`      ${c.result}  ${(c.away+' @ '+c.home).padEnd(16)} line ${String(c.line).padStart(5)} final ${String(c.final).padStart(3)}  pen ${c.pen.toFixed(1)} ${c.driver}${c.strong?' (strong)':''}  · ${c.wind} mph ${c.tempF}° ${c.precip} · ${c.src}`));
-    }
   }
+  // keep weeks in numeric order in the file
+  for(const league of ['nfl','cfb']){ const w = out.leagues[league].weeks;
+    out.leagues[league].weeks = Object.fromEntries(Object.keys(w).sort((x,y)=>x-y).map(k=>[k, w[k]])); }
 
   // season totals in the log
   for(const league of ['nfl','cfb']){
