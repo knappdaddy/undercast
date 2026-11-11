@@ -232,6 +232,37 @@ main{padding:.4rem 1rem 3rem}
 .tr-gt{flex:1;min-width:0;color:var(--txt);font-weight:600}
 .tr-gd{font-family:"Barlow Condensed";font-weight:700;color:var(--txt);font-size:.95rem}
 .tr-gd i{font-style:normal;color:var(--dim);font-size:.7rem;font-family:"Inter",sans-serif;font-weight:400}
+.rec-seg{display:flex;gap:.3rem;background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:.2rem;margin-bottom:.7rem}
+.rec-seg button{flex:1;background:none;border:none;color:var(--dim);font:600 .74rem Inter,sans-serif;padding:.45rem;border-radius:8px;cursor:pointer}
+.rec-seg button.on{background:var(--panel2);color:var(--txt)}
+.rec-cards{display:grid;grid-template-columns:1.3fr 1fr 1fr;gap:.45rem;margin-bottom:.8rem}
+.rec-card{background:var(--panel);border:1px solid var(--line);border-radius:var(--rs);padding:.6rem .65rem;min-width:0}
+.rec-card.big{border-color:#1c5a4a}
+.rc-l{font-size:.6rem;color:var(--dim);text-transform:uppercase;letter-spacing:.05em}
+.rc-r{font-family:"Barlow Condensed";font-weight:700;font-size:1.45rem;color:var(--txt);margin:.1rem 0}
+.rec-card.big .rc-r{font-size:1.7rem}
+.rc-s{font-size:.68rem;color:var(--mid)}
+.rc-s .good,.rw-c .good{color:var(--under)} .rc-s .bad,.rw-c .bad{color:var(--hot)}
+.rec-tbl{background:var(--panel);border:1px solid var(--line);border-radius:var(--r);overflow:hidden}
+.rw{border-top:1px solid var(--line);cursor:pointer}
+.rw-h{display:grid;grid-template-columns:1.7fr 1fr 1fr 1.05fr 1.15fr;gap:.3rem;align-items:center;padding:.55rem .65rem}
+.rw-h.head{font-size:.56rem;color:var(--dim);text-transform:uppercase;letter-spacing:.06em;padding:.45rem .65rem}
+.rw-d{min-width:0;font-size:.74rem;color:var(--txt);display:flex;flex-direction:column}
+.rw-d span{font-size:.6rem;color:var(--dim)}
+.rw-d .rw-p{display:inline;color:var(--warn);font-size:.56rem;text-transform:uppercase;letter-spacing:.04em}
+.rw-c{text-align:right;font-family:"Barlow Condensed";font-weight:600;font-size:.95rem;color:var(--mid);display:flex;flex-direction:column}
+.rw-c b{color:var(--txt);font-weight:700}
+.rw-c span{font-size:.78rem}
+.rw-h.head .rw-c{font-family:Inter,sans-serif;font-size:.56rem;font-weight:400;color:var(--dim)}
+.rw-na{color:var(--dim);font-family:Inter,sans-serif;font-size:.62rem!important;font-weight:400}
+.rw-c.cum b{color:var(--txt)}
+.rw.open{background:var(--panel2)}
+.rw-games{padding:0 .65rem .5rem}
+.rw-lg{flex:0 0 auto;font-size:.55rem;font-weight:700;color:var(--dim);border:1px solid var(--line2);border-radius:4px;padding:.05rem .25rem}
+.rw-st{font-size:.55rem;color:var(--under);text-transform:uppercase;font-weight:700;margin-left:.2rem}
+.rec-empty{padding:.8rem .65rem;font-size:.74rem;color:var(--dim)}
+.rec-note{font-size:.66rem;color:var(--dim);line-height:1.55;margin:.7rem .1rem 1rem}
+.rec-note a{color:var(--acc)}
 .tr-gw{flex:0 0 auto;width:74px;text-align:right;font-size:.6rem;color:var(--dim);text-transform:uppercase;letter-spacing:.03em}
 /* live under-o-meter (validated YPP trend) */
 .ltrend{margin:.7rem .9rem 0;background:#161d2e;border:1px solid var(--line);border-radius:9px;padding:.5rem .65rem}
@@ -435,6 +466,7 @@ main{padding:.4rem 1rem 3rem}
   <nav class="tabs">
     <button class="on" onclick="setTab('games',this)">Games</button>
     <button onclick="setTab('locks',this)">Locks &amp; Parlays</button>
+    <button onclick="setTab('record',this)">Record</button>
     <button onclick="setTab('method',this)">How It Works</button>
   </nav>
 
@@ -484,6 +516,14 @@ main{padding:.4rem 1rem 3rem}
         <b>Conviction ≠ a real probability.</b> It's a relative score from our weather model, scaled
         for readability. Use it to compare our leans against each other, not as a true win rate.
       </div>
+    </section>
+
+    <!-- RECORD TAB -->
+    <section id="tab-record" style="display:none">
+      <h2 class="sec-h">📈 Season record</h2>
+      <p class="sec-sub">Every pregame weather under the model called this season, NFL and college,
+        graded against the total at kickoff. Updated every morning.</p>
+      <div id="seasonRec"><div class="sk"></div><div class="sk"></div></div>
     </section>
 
     <!-- METHOD TAB -->
@@ -1519,7 +1559,8 @@ function setTab(t, btn){
   TAB=t;
   document.querySelectorAll('.tabs button').forEach(b=>b.classList.remove('on'));
   btn.classList.add('on');
-  ['games','locks','method'].forEach(x=>document.getElementById('tab-'+x).style.display=(x===t)?'block':'none');
+  ['games','locks','record','method'].forEach(x=>document.getElementById('tab-'+x).style.display=(x===t)?'block':'none');
+  if(t==='record'){ renderSeasonRec(); loadSeasonRec().then(()=>{ renderSeasonRec(); renderTrackRecord(); }); }
   window.scrollTo({top:0,behavior:'smooth'});
 }
 function evaluated(){ return STATE.games.filter(g=>(g.league||'nfl')===LEAGUE)   // never show the other league
@@ -1914,6 +1955,10 @@ function liveRecord(filter){
 // Graded weather-under signals for the week currently on screen (this league only).
 function weekSignals(){
   const wk=STATE.week;
+  // A finished week comes from the stored season record, so every device shows the same grades.
+  const sw = SEASONREC && SEASONREC.season===STATE.season && SEASONREC.leagues[LEAGUE]?.weeks?.[wk];
+  if(sw && sw.complete) return (sw.calls||[]).map(c=>({ id:c.id, away:c.away, home:c.home, pts:c.final, line:c.line,
+    result: c.result==='W'?'under':c.result==='L'?'over':'push', weather:{strong:c.strong, penalty:c.pen, driver:c.driver} }));
   return Object.keys(SIGLOG).map(id=>Object.assign({id}, SIGLOG[id]))
     .filter(r=>r.weather && r.result && r.week===wk && (!r.league || r.league===LEAGUE));
 }
@@ -1973,6 +2018,105 @@ function renderTrackRecord(){
     ${games.length?`<div class="tr-sub">Kickoff weather unders</div>${row('All weather unders', all)}${row('Strong only (≥2.5)', strong)}`:''}
     ${liveSec}${list}</div>`;
 }
+/* ---------- SEASON RECORD (graded daily by a GitHub Action, stored in the repo) ---------- */
+// data/record-<season>.json is written by tools/season-record.mjs. Read it straight from
+// GitHub (always current), falling back to the copy deployed with the site.
+let SEASONREC=null, SEASONREC_AT=0, SEASONREC_TRIED=false, REC_STRONG=false, REC_OPEN={};
+const recURL = () => `https://raw.githubusercontent.com/knappdaddy/undercast/main/data/record-${SEASON_YR}.json`;
+async function loadSeasonRec(force){
+  if(!force && SEASONREC && Date.now()-SEASONREC_AT < 10*60e3) return SEASONREC;
+  const bust = '?t=' + Math.floor(Date.now()/6e5);
+  for(const u of [recURL(), `data/record-${SEASON_YR}.json`]){
+    try{ const d = await fetchJSON(u+bust, 9000); if(d && d.leagues){ SEASONREC=d; SEASONREC_AT=Date.now(); SEASONREC_TRIED=true; return d; } }catch(e){}
+  }
+  SEASONREC_TRIED=true;
+  return SEASONREC;
+}
+const UNIT = r => r==='W' ? 100/110 : r==='L' ? -1 : 0;
+function recTally(calls){
+  const t = {W:0,L:0,P:0,u:0}; calls.forEach(c=>{ t[c.result]++; t.u += UNIT(c.result); }); return t;
+}
+const recStr = t => `${t.W}–${t.L}${t.P?'–'+t.P:''}`;
+const recPct = t => (t.W+t.L) ? Math.round(t.W/(t.W+t.L)*100)+'%' : '—';
+const recU = u => `${u>=0?'+':''}${u.toFixed(1)}u`;
+// Football week (Tue–Mon, ET) that a league-week's median kickoff falls in.
+function fbWeekStart(iso){
+  const d = new Date(new Date(iso).toLocaleString('en-US',{timeZone:'America/New_York'}));
+  d.setHours(0,0,0,0); d.setDate(d.getDate() - ((d.getDay()+5)%7)); return d;
+}
+const md = d => d.toLocaleDateString('en-US',{month:'short',day:'numeric'});
+function seasonRows(){
+  if(!SEASONREC) return [];
+  const rows = {};
+  for(const lg of ['nfl','cfb']){
+    const W = (SEASONREC.leagues[lg]||{}).weeks || {};
+    for(const [wk, w] of Object.entries(W)){
+      if(!w.mid) continue;
+      const start = fbWeekStart(w.mid), key = start.toISOString().slice(0,10);
+      const row = rows[key] ||= { key, start, nfl:null, cfb:null };
+      row[lg] = { wk:+wk, complete:w.complete, graded:w.graded,
+        calls:(w.calls||[]).filter(c=>!REC_STRONG || c.strong).map(c=>({...c, league:lg})) };
+    }
+  }
+  return Object.values(rows).sort((a,b)=>a.start-b.start);
+}
+function setRecStrong(v){ REC_STRONG=v; renderSeasonRec(); }
+function toggleRecWeek(k){ REC_OPEN[k]=!REC_OPEN[k]; renderSeasonRec(); }
+function renderSeasonRec(){
+  const el = document.getElementById('seasonRec'); if(!el) return;
+  if(!SEASONREC){ el.innerHTML = `<div class="rec-empty">${SEASONREC_TRIED
+    ? `No ${SEASON_YR} season record yet. It's generated every morning, so check back soon.`
+    : 'Loading the season record…'}</div>`; return; }
+  const rows = seasonRows();
+  const all = rows.flatMap(r=>[...(r.nfl?.calls||[]), ...(r.cfb?.calls||[])]);
+  const tot = recTally(all), nfl = recTally(all.filter(c=>c.league==='nfl')), cfb = recTally(all.filter(c=>c.league==='cfb'));
+  const card = (label, t, big) => `<div class="rec-card ${big?'big':''}">
+      <div class="rc-l">${label}</div>
+      <div class="rc-r">${recStr(t)}</div>
+      <div class="rc-s"><span class="${t.u>=0?'good':'bad'}">${recU(t.u)}</span> · ${recPct(t)}</div></div>`;
+  let cum = 0, cumT = {W:0,L:0,P:0};
+  const body = rows.map(r=>{
+    const wkCalls = [...(r.nfl?.calls||[]), ...(r.cfb?.calls||[])], t = recTally(wkCalls);
+    cum += t.u; ['W','L','P'].forEach(k=>cumT[k]+=t[k]);
+    const end = new Date(r.start); end.setDate(end.getDate()+6);
+    const partial = (r.nfl && !r.nfl.complete) || (r.cfb && !r.cfb.complete);
+    const cell = x => !x ? '<span class="rw-na">—</span>' : x.calls.length ? recStr(recTally(x.calls)) : '<span class="rw-na">0 calls</span>';
+    const sub = [r.nfl?`NFL wk ${r.nfl.wk}`:'', r.cfb?`CFB wk ${r.cfb.wk}`:''].filter(Boolean).join(' · ');
+    const open = REC_OPEN[r.key];
+    const list = !open ? '' : `<div class="rw-games">${wkCalls.length ? wkCalls.sort((a,b)=>b.pen-a.pen).map(c=>{
+        const cl = c.result==='W'?'hit':c.result==='L'?'miss':'push', mk = c.result==='W'?'✓':c.result==='L'?'✗':'—';
+        return `<div class="tr-g"><span class="tr-gm ${cl}">${mk}</span>
+          <span class="rw-lg">${c.league==='cfb'?'CFB':'NFL'}</span>
+          <span class="tr-gt">${c.away} @ ${c.home}${c.strong?' <b class="rw-st">strong</b>':''}</span>
+          <span class="tr-gd">${c.final} <i>vs</i> ${c.line}</span>
+          <span class="tr-gw">${c.driver} −${c.pen.toFixed(1)}</span></div>`; }).join('')
+      : '<div class="rec-empty">No weather unders this week.</div>'}</div>`;
+    return `<div class="rw ${open?'open':''}" onclick="toggleRecWeek('${r.key}')">
+      <div class="rw-h">
+        <div class="rw-d"><b>${md(r.start)}–${md(end)}</b>${partial?' <span class="rw-p">in progress</span>':''}<span>${sub}</span></div>
+        <div class="rw-c">${cell(r.nfl)}</div><div class="rw-c">${cell(r.cfb)}</div>
+        <div class="rw-c"><b>${t.W+t.L+t.P ? recStr(t) : '—'}</b><span class="${t.u>=0?'good':'bad'}">${t.W+t.L+t.P?recU(t.u):''}</span></div>
+        <div class="rw-c cum"><b>${recStr(cumT)}</b><span class="${cum>=0?'good':'bad'}">${recU(cum)}</span></div>
+      </div>${list}</div>`;
+  }).join('');
+  const n = tot.W+tot.L;
+  el.innerHTML = `
+    <div class="rec-seg"><button class="${REC_STRONG?'':'on'}" onclick="setRecStrong(false)">All calls</button>
+      <button class="${REC_STRONG?'on':''}" onclick="setRecStrong(true)">Strong only (≥2.5)</button></div>
+    <div class="rec-cards">${card(`${SEASONREC.season} season`, tot, true)}${card('🏈 NFL', nfl)}${card('🎓 College', cfb)}</div>
+    <div class="rec-tbl">
+      <div class="rw-h head"><div class="rw-d">Week</div><div class="rw-c">NFL</div><div class="rw-c">College</div>
+        <div class="rw-c">Week</div><div class="rw-c cum">Season</div></div>
+      ${body || '<div class="rec-empty">No graded weeks yet.</div>'}
+    </div>
+    <p class="rec-note">Tap a week to see its games. ${n} graded call${n===1?'':'s'} so far: it takes
+      a few hundred to tell a real edge from luck. Units assume −110. Weather is the kickoff-hour
+      forecast (archived NOAA NBM forecasts) run through this model. Lines are ESPN's total at kickoff.
+      A week is locked once all its games are final.
+      Updated ${new Date(SEASONREC.updated).toLocaleString('en-US',{month:'short',day:'numeric',hour:'numeric',minute:'2-digit',timeZone:'America/New_York'})} ET ·
+      <a href="https://github.com/knappdaddy/undercast/blob/main/data/record-${SEASONREC.season}.json" target="_blank" rel="noopener">data file</a></p>`;
+}
+
 function toggleWhy(id,btn){
   const el=document.getElementById('why-'+id); el.classList.toggle('open');
   btn.querySelector('.cx').style.transform = el.classList.contains('open')?'rotate(180deg)':'';
@@ -2055,6 +2199,7 @@ function renderAll(){
 renderConfBar();
 renderSkeleton();
 loadData();
+loadSeasonRec().then(()=>{ renderTrackRecord(); if(TAB==='record') renderSeasonRec(); });
 </script>
 </body>
 </html>
