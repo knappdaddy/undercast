@@ -54,6 +54,18 @@ Toggle **🔴 Live** and the board updates itself:
 - Settled games show the **final score + over/under result** in the header.
 - A freshness indicator shows how many seconds ago it last updated.
 
+## Season record
+
+The **Record** tab shows how the pregame weather model is doing this season, NFL and college
+side by side: season totals (W–L, units at −110, %), then one row per football week with each
+league's record and the running season total. Tap a week to see its games.
+
+It reads `data/record-<season>.json`, which a GitHub Action (`Season Record`) rebuilds every
+morning with `tools/season-record.mjs`. For every finished outdoor game, the tool runs the
+**kickoff-hour forecast** (Open-Meteo's archive of past NOAA NBM forecasts) through the app's own
+model functions, read straight from `index.html`, and grades the call against the pregame total.
+A week is locked once all its games are final, so a graded week never changes.
+
 ## Leagues
 
 **🏈 NFL / 🎓 College** toggle. College adds a conference cycler defaulting to the **AP Top 25**
