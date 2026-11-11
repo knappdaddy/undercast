@@ -1,0 +1,56 @@
+name: Season Record
+
+# Grades the pregame weather model for the NFL and college, week by week, and
+# commits data/record-<season>.json, which the app's Record tab reads.
+# Runs daily (after Monday Night Football and the Saturday college slate have
+# finished) and can be run by hand from the Actions tab.
+on:
+  schedule:
+    - cron: "47 10 * * *"     # ~6:47 AM ET
+  workflow_dispatch:
+    inputs:
+      season:
+        description: "Season"
+        default: "2026"
+        required: true
+      dry:
+        description: "1 = print only, don't commit"
+        default: ""
+        required: false
+      rebuild:
+        description: "1 = regrade frozen weeks too"
+        default: ""
+        required: false
+
+permissions:
+  contents: write
+
+concurrency:
+  group: season-record
+  cancel-in-progress: false
+
+jobs:
+  record:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - name: Grade the season
+        env:
+          DRY: ${{ inputs.dry }}
+          REBUILD: ${{ inputs.rebuild }}
+        run: |
+          node tools/season-record.mjs "${{ inputs.season || '2026' }}" | tee /tmp/out.txt
+          { echo '### Season record'; echo '```'; cat /tmp/out.txt; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
+      - name: Commit the record
+        if: ${{ inputs.dry != '1' }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add data/
+          if git diff --cached --quiet; then echo "no change"; exit 0; fi
+          git commit -m "Season record: update $(date -u +%Y-%m-%d)"
+          for i in 1 2 3; do git pull --rebase -q origin main && git push -q origin HEAD:main && exit 0; sleep 5; done
+          exit 1
