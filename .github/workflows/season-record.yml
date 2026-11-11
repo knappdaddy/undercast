@@ -21,6 +21,10 @@ on:
         description: "1 = regrade frozen weeks too"
         default: ""
         required: false
+      debug:
+        description: "1 = print diagnostics"
+        default: ""
+        required: false
 
 permissions:
   contents: write
@@ -40,6 +44,7 @@ jobs:
       - name: Grade the season
         env:
           DRY: ${{ inputs.dry }}
+          DEBUG: ${{ inputs.debug }}
           REBUILD: ${{ inputs.rebuild }}
         run: |
           node tools/season-record.mjs "${{ inputs.season || '2026' }}" | tee /tmp/out.txt

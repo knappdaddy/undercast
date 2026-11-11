@@ -122,19 +122,25 @@ async function gradeWeek(league, week){
   const now = Date.now();
   const done = ev => ev.competitions[0].status.type.state==='post' || Date.parse(ev.date) < now-3*864e5;
   const complete = evs.length>0 && evs.every(done);
-  const games = [];
+  const games = [], skip = { notFinal:0, noLine:0 };
+  if(process.env.DEBUG && evs[0]){ const c0 = evs.find(e=>e.competitions[0].status.type.state==='post')?.competitions[0] || evs[0].competitions[0];
+    console.log(`  [debug ${league} wk ${week}] competition keys: ${Object.keys(c0).join(',')}`);
+    console.log(`  [debug] status: ${JSON.stringify(c0.status.type)}  odds: ${JSON.stringify(c0.odds||null).slice(0,400)}`); }
   for(const ev of evs){
     const c = ev.competitions[0];
-    if(c.status.type.state!=='post' || c.status.type.completed===false) continue;
+    if(c.status.type.state!=='post' || c.status.type.completed===false){ skip.notFinal++; continue; }
     const home = c.competitors.find(x=>x.homeAway==='home') || c.competitors[0];
     const away = c.competitors.find(x=>x.homeAway==='away') || c.competitors[1];
-    const line = c.odds?.[0]?.overUnder; if(line==null) continue;
+    const line = c.odds?.[0]?.overUnder; if(line==null){ skip.noLine++; continue; }
     const homeAb = home.team.abbreviation || home.team.shortDisplayName, awayAb = away.team.abbreviation || away.team.shortDisplayName;
     const v = await venueOf(league, c, homeAb);
     games.push({ id:ev.id, league, kickT:Date.parse(ev.date), kickISO:ev.date, away:awayAb, home:homeAb,
       line:+line, final:(+home.score||0)+(+away.score||0), roof:v.roof, lat:v.lat, lon:v.lon, venue:v.name });
   }
-  return { complete, events:evs.length, games };
+  const ts = evs.map(ev=>Date.parse(ev.date)).sort((a,b)=>a-b);
+  const mid = ts.length ? new Date(ts[ts.length>>1]).toISOString() : null;   // median kickoff, for calendar grouping
+  if(process.env.DEBUG) console.log(`  [debug ${league} wk ${week}] events ${evs.length} · not final ${skip.notFinal} · no line ${skip.noLine} · kept ${games.length}`);
+  return { complete, events:evs.length, games, mid };
 }
 
 (async()=>{
@@ -182,7 +188,7 @@ async function gradeWeek(league, week){
             result: g.final<g.line ? 'W' : g.final>g.line ? 'L' : 'P' });
       }
       calls.sort((a,b)=>b.pen-a.pen);
-      out.leagues[league].weeks[wk] = { complete:W.complete, games:W.games.length, outdoor:outdoor.length,
+      out.leagues[league].weeks[wk] = { complete:W.complete, mid:W.mid, games:W.games.length, outdoor:outdoor.length,
         graded, noWx, calls };
       const rec = calls.reduce((a,c)=>(a[c.result]++,a), {W:0,L:0,P:0});
       console.log(`${league.toUpperCase()} wk ${String(wk).padStart(2)} ${W.complete?'final  ':'partial'}  games ${String(W.games.length).padStart(3)}  outdoor ${String(outdoor.length).padStart(3)}  graded ${String(graded).padStart(3)}${noWx?` (no wx ${noWx})`:''}  calls ${calls.length}  ${rec.W}-${rec.L}-${rec.P}`);
