@@ -114,6 +114,39 @@ async function kickoffWx(g, dates){
   return null;
 }
 
+/* ---- the total at kickoff for a FINISHED game ----
+   ESPN's scoreboard drops odds once a game is final, so look elsewhere:
+   1) ESPN game summary "pickcenter" (kept after the game)
+   2) ESPN core odds service
+   3) NFL only: nflverse closing total                                     */
+const SPORT = { nfl:'nfl', cfb:'college-football' };
+let NFLVERSE = null;
+async function nflverseLine(kickISO, homeAb){
+  if(!NFLVERSE){ NFLVERSE = {};
+    try{ const txt = await (await fetch('https://raw.githubusercontent.com/nflverse/nfldata/master/data/games.csv')).text();
+      const [h, ...rows] = txt.trim().split('\n').map(l=>l.split(','));
+      const ix = k => h.indexOf(k);
+      rows.forEach(r=>{ if(+r[ix('season')]===SEASON) NFLVERSE[`${r[ix('gameday')]}|${r[ix('home_team')]}`] = r[ix('total_line')]; });
+    }catch(e){} }
+  const day = new Date(kickISO).toLocaleDateString('en-CA',{timeZone:'America/New_York'});
+  const ab = { WSH:'WAS', LAR:'LA' }[homeAb] || homeAb;
+  const v = NFLVERSE[`${day}|${ab}`]; return v && v!=='NA' ? +v : null;
+}
+async function lineFor(league, id, kickISO, homeAb, dbg){
+  try{ const d = await getJSON(`https://site.api.espn.com/apis/site/v2/sports/football/${SPORT[league]}/summary?event=${id}`, 2);
+    const pc = (d.pickcenter||[]).find(p=>p.overUnder!=null);
+    if(dbg) console.log(`  [debug line ${id}] pickcenter: ${JSON.stringify((d.pickcenter||[]).map(p=>({p:p.provider?.name, ou:p.overUnder}))).slice(0,200)}`);
+    if(pc) return { line:+pc.overUnder, src:'espn' };
+  }catch(e){ if(dbg) console.log(`  [debug line ${id}] summary: ${e.message}`); }
+  try{ const d = await getJSON(`https://sports.core.api.espn.com/v2/sports/football/leagues/${SPORT[league]}/events/${id}/competitions/${id}/odds`, 2);
+    const it = (d.items||[]).find(x=>x.overUnder!=null);
+    if(dbg) console.log(`  [debug line ${id}] core: ${JSON.stringify((d.items||[]).map(x=>({p:x.provider?.name, ou:x.overUnder}))).slice(0,200)}`);
+    if(it) return { line:+it.overUnder, src:'espn-core' };
+  }catch(e){ if(dbg) console.log(`  [debug line ${id}] core: ${e.message}`); }
+  if(league==='nfl'){ const v = await nflverseLine(kickISO, homeAb); if(v!=null) return { line:v, src:'nflverse' }; }
+  return null;
+}
+
 /* ---- one league-week ---- */
 async function gradeWeek(league, week){
   const q = league==='cfb' ? `?groups=80&limit=300&seasontype=2&week=${week}&dates=${SEASON}` : `?seasontype=2&week=${week}&dates=${SEASON}`;
@@ -131,11 +164,18 @@ async function gradeWeek(league, week){
     if(c.status.type.state!=='post' || c.status.type.completed===false){ skip.notFinal++; continue; }
     const home = c.competitors.find(x=>x.homeAway==='home') || c.competitors[0];
     const away = c.competitors.find(x=>x.homeAway==='away') || c.competitors[1];
-    const line = c.odds?.[0]?.overUnder; if(line==null){ skip.noLine++; continue; }
     const homeAb = home.team.abbreviation || home.team.shortDisplayName, awayAb = away.team.abbreviation || away.team.shortDisplayName;
     const v = await venueOf(league, c, homeAb);
-    games.push({ id:ev.id, league, kickT:Date.parse(ev.date), kickISO:ev.date, away:awayAb, home:homeAb,
-      line:+line, final:(+home.score||0)+(+away.score||0), roof:v.roof, lat:v.lat, lon:v.lon, venue:v.name });
+    const g = { id:ev.id, league, kickT:Date.parse(ev.date), kickISO:ev.date, away:awayAb, home:homeAb,
+      line:null, final:(+home.score||0)+(+away.score||0), roof:v.roof, lat:v.lat, lon:v.lon, venue:v.name };
+    // Only outdoor games can get a weather call, so only they need a line.
+    if(g.roof==='open' && g.lat!=null){
+      const L = c.odds?.[0]?.overUnder!=null ? { line:+c.odds[0].overUnder, src:'espn' }
+        : await lineFor(league, ev.id, ev.date, homeAb, process.env.DEBUG && skip.noLine<1 && games.length<1);
+      if(!L){ skip.noLine++; continue; }
+      g.line = L.line; g.lineSrc = L.src;
+    }
+    games.push(g);
   }
   const ts = evs.map(ev=>Date.parse(ev.date)).sort((a,b)=>a-b);
   const mid = ts.length ? new Date(ts[ts.length>>1]).toISOString() : null;   // median kickoff, for calendar grouping
@@ -146,7 +186,7 @@ async function gradeWeek(league, week){
 (async()=>{
   const prev = (!REBUILD && fs.existsSync(OUT)) ? JSON.parse(fs.readFileSync(OUT,'utf8')) : null;
   const out = { season:SEASON, updated:new Date().toISOString(),
-    method:'Kickoff-hour forecast (Open-Meteo forecast archive, NOAA NBM first) run through the app model; graded vs ESPN total at kickoff. Penalty >= 1.5 = UNDER call, >= 2.5 = strong. Complete weeks are frozen.',
+    method:'Kickoff-hour forecast (Open-Meteo forecast archive, NOAA NBM first) run through the app model; graded vs the pregame total (ESPN; nflverse closing total as an NFL fallback). Penalty >= 1.5 = UNDER call, >= 2.5 = strong. Complete weeks are frozen.',
     leagues:{ nfl:{weeks:{}}, cfb:{weeks:{}} } };
 
   // 1) collect every finished game from each week that isn't frozen yet
@@ -164,13 +204,13 @@ async function gradeWeek(league, week){
   }
   // 2) every date each outdoor venue hosts, so its forecast is ONE request
   const venueDates = {};
-  for(const {W} of pending) W.games.filter(g=>g.roof==='open' && g.lat!=null)
+  for(const {W} of pending) W.games.filter(g=>g.roof==='open' && g.lat!=null && g.line!=null)
     .forEach(g=>(venueDates[vkey(g)] ||= new Set()).add(g.kickISO.slice(0,10)));
   console.log(`${pending.length} league-weeks to grade · ${Object.keys(venueDates).length} outdoor venues\n`);
 
   // 3) grade
   for(const {league, wk, W} of pending){
-      const outdoor = W.games.filter(g=>g.roof==='open' && g.lat!=null);
+      const outdoor = W.games.filter(g=>g.roof==='open' && g.lat!=null && g.line!=null);
       const calls = []; let graded = 0, noWx = 0;
       for(const g of outdoor){
           const wx = await kickoffWx(g, [...venueDates[vkey(g)]].sort());
@@ -184,7 +224,7 @@ async function gradeWeek(league, week){
             driver: top && top[1]>0 ? top[0] : '—',
             wind:wx.windMph, tempF:wx.tempF,
             precip: wx.precipType==='none' ? 'dry' : `${wx.precipIntensity} ${wx.precipType}`,
-            src: wx.src,
+            src: wx.src, lineSrc: g.lineSrc,
             result: g.final<g.line ? 'W' : g.final>g.line ? 'L' : 'P' });
       }
       calls.sort((a,b)=>b.pen-a.pen);
