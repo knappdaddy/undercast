@@ -1,0 +1,575 @@
+{
+ "season": 2026,
+ "updated": "2026-11-11T14:15:50.257Z",
+ "method": "Kickoff-hour forecast (Open-Meteo forecast archive, NOAA NBM first) run through the app model; graded vs the pregame total (ESPN; nflverse closing total as an NFL fallback). Penalty >= 1.5 = UNDER call, >= 2.5 = strong. Complete weeks are frozen.",
+ "leagues": {
+  "nfl": {
+   "weeks": {
+    "1": {
+     "complete": true,
+     "mid": "2026-09-13T17:00:00.000Z",
+     "games": 16,
+     "outdoor": 10,
+     "graded": 10,
+     "noWx": 0,
+     "calls": []
+    },
+    "2": {
+     "complete": true,
+     "mid": "2026-09-20T17:00:00.000Z",
+     "games": 16,
+     "outdoor": 10,
+     "graded": 10,
+     "noWx": 0,
+     "calls": [
+      {
+       "id": "401872937",
+       "away": "MIN",
+       "home": "CHI",
+       "kick": "2026-09-20T17:00Z",
+       "venue": "Soldier Field",
+       "line": 46.5,
+       "final": 12,
+       "pen": 1.68,
+       "strong": false,
+       "driver": "wind",
+       "wind": 16,
+       "tempF": 68,
+       "precip": "light rain",
+       "src": "forecast · NOAA NBM",
+       "lineSrc": "espn",
+       "result": "W"
+      }
+     ]
+    },
+    "3": {
+     "complete": true,
+     "mid": "2026-09-27T17:00:00.000Z",
+     "games": 16,
+     "outdoor": 13,
+     "graded": 13,
+     "noWx": 0,
+     "calls": [
+      {
+       "id": "401872956",
+       "away": "TEN",
+       "home": "NYG",
+       "kick": "2026-09-27T17:00Z",
+       "venue": "MetLife Stadium",
+       "line": 37.5,
+       "final": 19,
+       "pen": 1.82,
+       "strong": false,
+       "driver": "wind",
+       "wind": 17,
+       "tempF": 66,
+       "precip": "light rain",
+       "src": "forecast · NOAA NBM",
+       "lineSrc": "espn",
+       "result": "W"
+      },
+      {
+       "id": "401872955",
+       "away": "SEA",
+       "home": "WSH",
+       "kick": "2026-09-27T17:00Z",
+       "venue": "Northwest Stadium",
+       "line": 40.5,
+       "final": 64,
+       "pen": 1.54,
+       "strong": false,
+       "driver": "wind",
+       "wind": 16,
+       "tempF": 62,
+       "precip": "light rain",
+       "src": "forecast · NOAA NBM",
+       "lineSrc": "espn",
+       "result": "L"
+      }
+     ]
+    },
+    "4": {
+     "complete": true,
+     "mid": "2026-10-04T17:00:00.000Z",
+     "games": 16,
+     "outdoor": 12,
+     "graded": 12,
+     "noWx": 0,
+     "calls": []
+    },
+    "5": {
+     "complete": true,
+     "mid": "2026-10-11T17:00:00.000Z",
+     "games": 15,
+     "outdoor": 9,
+     "graded": 9,
+     "noWx": 0,
+     "calls": [
+      {
+       "id": "401872985",
+       "away": "IND",
+       "home": "PIT",
+       "kick": "2026-10-11T17:00Z",
+       "venue": "Acrisure Stadium",
+       "line": 42.5,
+       "final": 56,
+       "pen": 2.92,
+       "strong": true,
+       "driver": "precip",
+       "wind": 13,
+       "tempF": 63,
+       "precip": "heavy rain",
+       "src": "forecast · NOAA NBM",
+       "lineSrc": "espn",
+       "result": "L"
+      },
+      {
+       "id": "401872988",
+       "away": "NYG",
+       "home": "WSH",
+       "kick": "2026-10-11T17:00Z",
+       "venue": "Northwest Stadium",
+       "line": 41.5,
+       "final": 54,
+       "pen": 1.98,
+       "strong": false,
+       "driver": "precip",
+       "wind": 13,
+       "tempF": 68,
+       "precip": "moderate rain",
+       "src": "forecast · NOAA NBM",
+       "lineSrc": "espn",
+       "result": "L"
+      },
+      {
+       "id": "401872983",
+       "away": "CLE",
+       "home": "NYJ",
+       "kick": "2026-10-11T17:00Z",
+       "venue": "MetLife Stadium",
+       "line": 38.5,
+       "final": 29,
+       "pen": 1.91,
+       "strong": false,
+       "driver": "precip",
+       "wind": 11,
+       "tempF": 61,
+       "precip": "moderate rain",
+       "src": "forecast · NOAA NBM",
+       "lineSrc": "espn",
+       "result": "W"
+      }
+     ]
+    },
+    "6": {
+     "complete": true,
+     "mid": "2026-10-18T17:00:00.000Z",
+     "games": 14,
+     "outdoor": 10,
+     "graded": 10,
+     "noWx": 0,
+     "calls": []
+    },
+    "7": {
+     "complete": true,
+     "mid": "2026-10-25T17:00:00.000Z",
+     "games": 14,
+     "outdoor": 8,
+     "graded": 8,
+     "noWx": 0,
+     "calls": []
+    },
+    "8": {
+     "complete": true,
+     "mid": "2026-11-01T18:00:00.000Z",
+     "games": 14,
+     "outdoor": 11,
+     "graded": 11,
+     "noWx": 0,
+     "calls": [
+      {
+       "id": "401873034",
+       "away": "NE",
+       "home": "MIA",
+       "kick": "2026-11-01T21:25Z",
+       "venue": "Hard Rock Stadium",
+       "line": 41.5,
+       "final": 43,
+       "pen": 2.67,
+       "strong": true,
+       "driver": "precip",
+       "wind": 13,
+       "tempF": 77,
+       "precip": "heavy rain",
+       "src": "forecast · NOAA NBM",
+       "lineSrc": "espn",
+       "result": "L"
+      },
+      {
+       "id": "401873025",
+       "away": "ATL",
+       "home": "TB",
+       "kick": "2026-11-01T18:00Z",
+       "venue": "Raymond James Stadium",
+       "line": 43.5,
+       "final": 16,
+       "pen": 2.42,
+       "strong": false,
+       "driver": "precip",
+       "wind": 11,
+       "tempF": 80,
+       "precip": "heavy rain",
+       "src": "forecast · NOAA NBM",
+       "lineSrc": "espn",
+       "result": "W"
+      }
+     ]
+    },
+    "9": {
+     "complete": true,
+     "mid": "2026-11-08T18:00:00.000Z",
+     "games": 15,
+     "outdoor": 10,
+     "graded": 10,
+     "noWx": 0,
+     "calls": []
+    },
+    "10": {
+     "complete": false,
+     "mid": "2026-11-15T18:00:00.000Z",
+     "games": 0,
+     "outdoor": 0,
+     "graded": 0,
+     "noWx": 0,
+     "calls": []
+    }
+   }
+  },
+  "cfb": {
+   "weeks": {
+    "1": {
+     "complete": true,
+     "mid": "2026-09-05T19:30:00.000Z",
+     "games": 99,
+     "outdoor": 93,
+     "graded": 93,
+     "noWx": 0,
+     "calls": [
+      {
+       "id": "401858209",
+       "away": "TULN",
+       "home": "DUKE",
+       "kick": "2026-09-05T19:30Z",
+       "venue": "Wallace Wade Stadium",
+       "line": 51.5,
+       "final": 20,
+       "pen": 2.23,
+       "strong": false,
+       "driver": "precip",
+       "wind": 4,
+       "tempF": 94,
+       "precip": "heavy rain",
+       "src": "forecast · NOAA NBM",
+       "lineSrc": "espn",
+       "result": "W"
+      }
+     ]
+    },
+    "2": {
+     "complete": true,
+     "mid": "2026-09-12T20:00:00.000Z",
+     "games": 86,
+     "outdoor": 85,
+     "graded": 85,
+     "noWx": 0,
+     "calls": [
+      {
+       "id": "401866416",
+       "away": "WOF",
+       "home": "KENT",
+       "kick": "2026-09-12T16:00Z",
+       "venue": "Zoeller Field at Dix Stadium",
+       "line": 45.5,
+       "final": 51,
+       "pen": 2.02,
+       "strong": false,
+       "driver": "precip",
+       "wind": 7,
+       "tempF": 76,
+       "precip": "heavy rain",
+       "src": "forecast · NOAA NBM",
+       "lineSrc": "espn",
+       "result": "L"
+      }
+     ]
+    },
+    "3": {
+     "complete": true,
+     "mid": "2026-09-19T21:35:00.000Z",
+     "games": 75,
+     "outdoor": 75,
+     "graded": 75,
+     "noWx": 0,
+     "calls": []
+    },
+    "4": {
+     "complete": true,
+     "mid": "2026-09-26T19:30:00.000Z",
+     "games": 71,
+     "outdoor": 70,
+     "graded": 70,
+     "noWx": 0,
+     "calls": [
+      {
+       "id": "401858242",
+       "away": "VT",
+       "home": "BC",
+       "kick": "2026-09-26T16:00Z",
+       "venue": "Alumni Stadium (Chestnut Hill, MA)",
+       "line": 45.5,
+       "final": 35,
+       "pen": 2.3,
+       "strong": false,
+       "driver": "wind",
+       "wind": 18,
+       "tempF": 58,
+       "precip": "moderate rain",
+       "src": "forecast · NOAA NBM",
+       "lineSrc": "espn",
+       "result": "W"
+      },
+      {
+       "id": "401869961",
+       "away": "JMU",
+       "home": "ODU",
+       "kick": "2026-09-26T22:00Z",
+       "venue": "S.B. Ballard Stadium",
+       "line": 44.5,
+       "final": 66,
+       "pen": 1.62,
+       "strong": false,
+       "driver": "wind",
+       "wind": 19,
+       "tempF": 65,
+       "precip": "dry",
+       "src": "forecast · NOAA NBM",
+       "lineSrc": "espn",
+       "result": "L"
+      }
+     ]
+    },
+    "5": {
+     "complete": true,
+     "mid": "2026-10-03T19:30:00.000Z",
+     "games": 59,
+     "outdoor": 57,
+     "graded": 57,
+     "noWx": 0,
+     "calls": [
+      {
+       "id": "401858248",
+       "away": "LOU",
+       "home": "NCSU",
+       "kick": "2026-10-03T19:30Z",
+       "venue": "Carter-Finley Stadium",
+       "line": 56.5,
+       "final": 59,
+       "pen": 1.53,
+       "strong": false,
+       "driver": "precip",
+       "wind": 7,
+       "tempF": 78,
+       "precip": "moderate rain",
+       "src": "forecast · NOAA NBM",
+       "lineSrc": "espn",
+       "result": "L"
+      }
+     ]
+    },
+    "6": {
+     "complete": true,
+     "mid": "2026-10-10T19:30:00.000Z",
+     "games": 58,
+     "outdoor": 56,
+     "graded": 56,
+     "noWx": 0,
+     "calls": [
+      {
+       "id": "401856718",
+       "away": "MISS",
+       "home": "VAN",
+       "kick": "2026-10-10T19:30Z",
+       "venue": "FirstBank Stadium",
+       "line": 54.5,
+       "final": 69,
+       "pen": 3.39,
+       "strong": true,
+       "driver": "precip",
+       "wind": 17,
+       "tempF": 65,
+       "precip": "heavy rain",
+       "src": "forecast · NOAA NBM",
+       "lineSrc": "espn",
+       "result": "L"
+      },
+      {
+       "id": "401869843",
+       "away": "ODU",
+       "home": "APP",
+       "kick": "2026-10-10T17:00Z",
+       "venue": "Kidd Brewer Stadium",
+       "line": 45.5,
+       "final": 13,
+       "pen": 3.04,
+       "strong": true,
+       "driver": "precip",
+       "wind": 18,
+       "tempF": 55,
+       "precip": "moderate rain",
+       "src": "forecast · NOAA NBM",
+       "lineSrc": "espn",
+       "result": "W"
+      },
+      {
+       "id": "401858255",
+       "away": "DUKE",
+       "home": "GT",
+       "kick": "2026-10-10T19:30Z",
+       "venue": "Bobby Dodd Stadium",
+       "line": 45.5,
+       "final": 53,
+       "pen": 1.8,
+       "strong": false,
+       "driver": "wind",
+       "wind": 21,
+       "tempF": 68,
+       "precip": "dry",
+       "src": "forecast · NOAA NBM",
+       "lineSrc": "espn",
+       "result": "L"
+      },
+      {
+       "id": "401862797",
+       "away": "RICE",
+       "home": "ECU",
+       "kick": "2026-10-10T17:00Z",
+       "venue": "Dowdy-Ficklen Stadium",
+       "line": 46.5,
+       "final": 40,
+       "pen": 1.73,
+       "strong": false,
+       "driver": "precip",
+       "wind": 13,
+       "tempF": 72,
+       "precip": "moderate rain",
+       "src": "forecast · NOAA NBM",
+       "lineSrc": "espn",
+       "result": "W"
+      },
+      {
+       "id": "401858260",
+       "away": "WAKE",
+       "home": "NCSU",
+       "kick": "2026-10-10T16:00Z",
+       "venue": "Carter-Finley Stadium",
+       "line": 56.5,
+       "final": 52,
+       "pen": 1.58,
+       "strong": false,
+       "driver": "precip",
+       "wind": 13,
+       "tempF": 66,
+       "precip": "moderate rain",
+       "src": "forecast · NOAA NBM",
+       "lineSrc": "espn",
+       "result": "W"
+      }
+     ]
+    },
+    "7": {
+     "complete": true,
+     "mid": "2026-10-17T19:30:00.000Z",
+     "games": 62,
+     "outdoor": 59,
+     "graded": 59,
+     "noWx": 0,
+     "calls": [
+      {
+       "id": "401858263",
+       "away": "FSU",
+       "home": "MIA",
+       "kick": "2026-10-17T23:00Z",
+       "venue": "Hard Rock Stadium",
+       "line": 57.5,
+       "final": 78,
+       "pen": 2.27,
+       "strong": false,
+       "driver": "precip",
+       "wind": 9,
+       "tempF": 79,
+       "precip": "heavy rain",
+       "src": "forecast · NOAA NBM",
+       "lineSrc": "espn",
+       "result": "L"
+      }
+     ]
+    },
+    "8": {
+     "complete": true,
+     "mid": "2026-10-24T19:30:00.000Z",
+     "games": 56,
+     "outdoor": 56,
+     "graded": 56,
+     "noWx": 0,
+     "calls": []
+    },
+    "9": {
+     "complete": true,
+     "mid": "2026-10-31T19:30:00.000Z",
+     "games": 56,
+     "outdoor": 52,
+     "graded": 52,
+     "noWx": 0,
+     "calls": []
+    },
+    "10": {
+     "complete": true,
+     "mid": "2026-11-07T20:30:00.000Z",
+     "games": 63,
+     "outdoor": 60,
+     "graded": 60,
+     "noWx": 0,
+     "calls": [
+      {
+       "id": "401860912",
+       "away": "TXST",
+       "home": "ORST",
+       "kick": "2026-11-08T03:30Z",
+       "venue": "Reser Stadium",
+       "line": 72.5,
+       "final": 63,
+       "pen": 1.96,
+       "strong": false,
+       "driver": "precip",
+       "wind": 12,
+       "tempF": 60,
+       "precip": "moderate rain",
+       "src": "forecast · NOAA NBM",
+       "lineSrc": "espn",
+       "result": "W"
+      }
+     ]
+    },
+    "11": {
+     "complete": false,
+     "mid": "2026-11-14T20:30:00.000Z",
+     "games": 3,
+     "outdoor": 3,
+     "graded": 3,
+     "noWx": 0,
+     "calls": []
+    }
+   }
+  }
+ }
+}
