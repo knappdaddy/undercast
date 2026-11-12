@@ -466,7 +466,6 @@ main{padding:.4rem 1rem 3rem}
   <nav class="tabs">
     <button class="on" onclick="setTab('games',this)">Games</button>
     <button onclick="setTab('locks',this)">Locks &amp; Parlays</button>
-    <button onclick="setTab('record',this)">Record</button>
     <button onclick="setTab('method',this)">How It Works</button>
   </nav>
 
@@ -1558,11 +1557,19 @@ function rk(r){ return r ? `<span class="rk">${r}</span> ` : ''; }
 function setTab(t, btn){
   TAB=t;
   document.querySelectorAll('.tabs button').forEach(b=>b.classList.remove('on'));
-  btn.classList.add('on');
+  if(btn) btn.classList.add('on');
+  if(t!=='record' && location.hash==='#record') history.replaceState(null,'',location.pathname+location.search);
   ['games','locks','record','method'].forEach(x=>document.getElementById('tab-'+x).style.display=(x===t)?'block':'none');
-  if(t==='record'){ renderSeasonRec(); loadSeasonRec().then(()=>{ renderSeasonRec(); renderTrackRecord(); }); }
+  if(t==='record'){ renderSeasonRec(); loadSeasonRec().then(renderSeasonRec); }
   window.scrollTo({top:0,behavior:'smooth'});
 }
+// The season record is unlisted: no menu entry, reached only at /undercast/record
+// (which redirects here with #record) while its accuracy is still being checked.
+function openRecordView(){ setTab('record', null); }
+window.addEventListener('hashchange', ()=>{
+  if(location.hash==='#record') openRecordView();
+  else if(TAB==='record') setTab('games', document.querySelector('.tabs button'));
+});
 function evaluated(){ return STATE.games.filter(g=>(g.league||'nfl')===LEAGUE)   // never show the other league
   .map(g=>({...g, e:computeEdge({...g, mode:MODE})})); }
 
@@ -1955,10 +1962,6 @@ function liveRecord(filter){
 // Graded weather-under signals for the week currently on screen (this league only).
 function weekSignals(){
   const wk=STATE.week;
-  // A finished week comes from the stored season record, so every device shows the same grades.
-  const sw = SEASONREC && SEASONREC.season===STATE.season && SEASONREC.leagues[LEAGUE]?.weeks?.[wk];
-  if(sw && sw.complete) return (sw.calls||[]).map(c=>({ id:c.id, away:c.away, home:c.home, pts:c.final, line:c.line,
-    result: c.result==='W'?'under':c.result==='L'?'over':'push', weather:{strong:c.strong, penalty:c.pen, driver:c.driver} }));
   return Object.keys(SIGLOG).map(id=>Object.assign({id}, SIGLOG[id]))
     .filter(r=>r.weather && r.result && r.week===wk && (!r.league || r.league===LEAGUE));
 }
@@ -2199,7 +2202,7 @@ function renderAll(){
 renderConfBar();
 renderSkeleton();
 loadData();
-loadSeasonRec().then(()=>{ renderTrackRecord(); if(TAB==='record') renderSeasonRec(); });
+if(location.hash==='#record') openRecordView();
 </script>
 </body>
 </html>

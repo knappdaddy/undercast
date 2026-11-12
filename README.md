@@ -56,7 +56,8 @@ Toggle **🔴 Live** and the board updates itself:
 
 ## Season record
 
-The **Record** tab shows how the pregame weather model is doing this season, NFL and college
+An **unlisted** record page, `/undercast/record` (not linked from the app while its accuracy is
+being checked), shows how the pregame weather model is doing this season, NFL and college
 side by side: season totals (W–L, units at −110, %), then one row per football week with each
 league's record and the running season total. Tap a week to see its games.
 
