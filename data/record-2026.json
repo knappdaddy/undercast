@@ -1,6 +1,6 @@
 {
  "season": 2026,
- "updated": "2026-11-12T18:36:15.786Z",
+ "updated": "2026-11-13T18:04:01.248Z",
  "method": "Kickoff-hour forecast (Open-Meteo forecast archive, NOAA NBM first) run through the app model; graded vs the pregame total (ESPN; nflverse closing total as an NFL fallback). Penalty >= 1.5 = UNDER call, >= 2.5 = strong. Complete weeks are frozen.",
  "leagues": {
   "nfl": {
@@ -237,11 +237,30 @@
     "10": {
      "complete": false,
      "mid": "2026-11-15T18:00:00.000Z",
-     "games": 0,
-     "outdoor": 0,
-     "graded": 0,
+     "games": 1,
+     "outdoor": 1,
+     "graded": 1,
      "noWx": 0,
-     "calls": []
+     "calls": [
+      {
+       "id": "401873052",
+       "away": "WSH",
+       "home": "NYG",
+       "kick": "2026-11-13T01:15Z",
+       "venue": "MetLife Stadium",
+       "line": 40.5,
+       "final": 45,
+       "pen": 1.84,
+       "strong": false,
+       "driver": "precip",
+       "wind": 13,
+       "tempF": 52,
+       "precip": "moderate rain",
+       "src": "forecast · NOAA NBM",
+       "lineSrc": "espn",
+       "result": "L"
+      }
+     ]
     }
    }
   },
@@ -563,9 +582,9 @@
     "11": {
      "complete": false,
      "mid": "2026-11-14T20:30:00.000Z",
-     "games": 6,
-     "outdoor": 6,
-     "graded": 6,
+     "games": 8,
+     "outdoor": 8,
+     "graded": 8,
      "noWx": 0,
      "calls": []
     }
