@@ -1,6 +1,6 @@
 {
  "season": 2026,
- "updated": "2026-11-15T17:24:10.943Z",
+ "updated": "2026-11-16T20:40:53.705Z",
  "method": "Kickoff-hour forecast (Open-Meteo forecast archive, NOAA NBM first) run through the app model; graded vs the pregame total (ESPN; nflverse closing total as an NFL fallback). Penalty >= 1.5 = UNDER call, >= 2.5 = strong. Complete weeks are frozen.",
  "leagues": {
   "nfl": {
@@ -237,9 +237,9 @@
     "10": {
      "complete": false,
      "mid": "2026-11-15T18:00:00.000Z",
-     "games": 1,
-     "outdoor": 1,
-     "graded": 1,
+     "games": 13,
+     "outdoor": 7,
+     "graded": 7,
      "noWx": 0,
      "calls": [
       {
@@ -259,6 +259,24 @@
        "src": "forecast · NOAA NBM",
        "lineSrc": "espn",
        "result": "L"
+      },
+      {
+       "id": "401873053",
+       "away": "NE",
+       "home": "DET",
+       "kick": "2026-11-15T14:30Z",
+       "venue": "FC Bayern Munich Stadium",
+       "line": 50.5,
+       "final": 45,
+       "pen": 1.56,
+       "strong": false,
+       "driver": "wind",
+       "wind": 17,
+       "tempF": 32,
+       "precip": "dry",
+       "src": "forecast · NOAA NBM",
+       "lineSrc": "espn",
+       "result": "W"
       }
      ]
     }
@@ -580,11 +598,20 @@
      ]
     },
     "11": {
-     "complete": false,
+     "complete": true,
      "mid": "2026-11-14T20:30:00.000Z",
-     "games": 66,
-     "outdoor": 65,
-     "graded": 65,
+     "games": 67,
+     "outdoor": 66,
+     "graded": 66,
+     "noWx": 0,
+     "calls": []
+    },
+    "12": {
+     "complete": false,
+     "mid": "2026-11-21T20:00:00.000Z",
+     "games": 0,
+     "outdoor": 0,
+     "graded": 0,
      "noWx": 0,
      "calls": []
     }
