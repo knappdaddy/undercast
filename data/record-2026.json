@@ -1,6 +1,6 @@
 {
  "season": 2026,
- "updated": "2026-11-23T22:13:57.182Z",
+ "updated": "2026-11-24T20:52:52.144Z",
  "method": "Kickoff-hour forecast (Open-Meteo forecast archive, NOAA NBM first) run through the app model; graded vs the pregame total (ESPN; nflverse closing total as an NFL fallback). Penalty >= 1.5 = UNDER call, >= 2.5 = strong. Complete weeks are frozen.",
  "leagues": {
   "nfl": {
@@ -281,11 +281,11 @@
      ]
     },
     "11": {
-     "complete": false,
+     "complete": true,
      "mid": "2026-11-22T18:00:00.000Z",
-     "games": 12,
-     "outdoor": 8,
-     "graded": 8,
+     "games": 13,
+     "outdoor": 9,
+     "graded": 9,
      "noWx": 0,
      "calls": []
     }
