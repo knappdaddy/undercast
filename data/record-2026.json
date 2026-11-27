@@ -1,6 +1,6 @@
 {
  "season": 2026,
- "updated": "2026-11-26T19:50:17.666Z",
+ "updated": "2026-11-27T19:39:07.146Z",
  "method": "Kickoff-hour forecast (Open-Meteo forecast archive, NOAA NBM first) run through the app model; graded vs the pregame total (ESPN; nflverse closing total as an NFL fallback). Penalty >= 1.5 = UNDER call, >= 2.5 = strong. Complete weeks are frozen.",
  "leagues": {
   "nfl": {
@@ -292,11 +292,30 @@
     "12": {
      "complete": false,
      "mid": "2026-11-29T18:00:00.000Z",
-     "games": 1,
-     "outdoor": 0,
-     "graded": 0,
+     "games": 4,
+     "outdoor": 1,
+     "graded": 1,
      "noWx": 0,
-     "calls": []
+     "calls": [
+      {
+       "id": "401873082",
+       "away": "KC",
+       "home": "BUF",
+       "kick": "2026-11-27T01:20Z",
+       "venue": "Highmark Stadium",
+       "line": 46.5,
+       "final": 23,
+       "pen": 3.64,
+       "strong": true,
+       "driver": "precip",
+       "wind": 13,
+       "tempF": 38,
+       "precip": "heavy rain",
+       "src": "forecast · NOAA NBM",
+       "lineSrc": "espn",
+       "result": "W"
+      }
+     ]
     }
    }
   },
@@ -673,9 +692,9 @@
     "13": {
      "complete": false,
      "mid": "2026-11-28T19:00:00.000Z",
-     "games": 2,
-     "outdoor": 2,
-     "graded": 2,
+     "games": 3,
+     "outdoor": 3,
+     "graded": 3,
      "noWx": 0,
      "calls": []
     }
